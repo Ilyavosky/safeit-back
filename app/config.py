@@ -1,0 +1,51 @@
+import base64
+import binascii
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    environment: Literal["dev", "prod"] = "dev"
+    cors_origins: list[str] = ["http://localhost:3000"]
+
+    database_url: SecretStr
+    redis_url: str = "redis://localhost:6379/0"
+
+    jwt_secret: SecretStr = Field(min_length=32)
+    jwt_algorithm: Literal["HS256", "HS384", "HS512"] = "HS256"
+    access_token_ttl_minutes: int = Field(default=15, ge=1)
+    refresh_token_ttl_days: int = Field(default=7, ge=1)
+
+    encryption_key: SecretStr
+
+    llm_api_key: SecretStr | None = None
+    llm_model: str | None = None
+
+    @field_validator("encryption_key")
+    @classmethod
+    def validate_encryption_key(cls, value: SecretStr) -> SecretStr:
+        try:
+            raw = base64.b64decode(value.get_secret_value(), validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("encryption_key must be valid base64") from exc
+        if len(raw) != 32:
+            raise ValueError("encryption_key must decode to 32 bytes for AES-256-GCM")
+        return value
+
+    @property
+    def is_prod(self) -> bool:
+        return self.environment == "prod"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()  # type: ignore[call-arg]
