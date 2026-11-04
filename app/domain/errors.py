@@ -1,0 +1,95 @@
+class DomainError(Exception):
+    code = "domain_error"
+    default_message = "Ocurrió un error."
+
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or self.default_message
+        super().__init__(self.message)
+
+
+class EntityNotFoundError(DomainError):
+    code = "not_found"
+    default_message = "No se encontró el recurso solicitado."
+
+    def __init__(self, entity: str, identifier: object | None = None) -> None:
+        self.entity = entity
+        self.identifier = identifier
+        super().__init__()
+
+
+class ConflictError(DomainError):
+    code = "conflict"
+    default_message = "El recurso ya existe o entra en conflicto con otro."
+
+
+class InvalidCredentialsError(DomainError):
+    code = "invalid_credentials"
+    default_message = "Correo o contraseña incorrectos."
+
+
+class MfaRequiredError(DomainError):
+    code = "mfa_required"
+    default_message = "Se requiere el código de verificación en dos pasos."
+
+
+class InvalidMfaCodeError(DomainError):
+    code = "invalid_mfa_code"
+    default_message = "El código de verificación es incorrecto o expiró."
+
+
+class InvalidTokenError(DomainError):
+    code = "invalid_token"
+    default_message = "La sesión no es válida o expiró."
+
+
+class TokenReuseDetectedError(DomainError):
+    code = "token_reuse_detected"
+    default_message = "Se detectó un uso indebido de la sesión. Inicia sesión de nuevo."
+
+    def __init__(self, family_id: object | None = None) -> None:
+        self.family_id = family_id
+        super().__init__()
+
+
+class PermissionDeniedError(DomainError):
+    code = "permission_denied"
+    default_message = "No tienes permiso para realizar esta acción."
+
+
+class DomainAlreadyClaimedError(ConflictError):
+    code = "domain_already_claimed"
+    default_message = "Este dominio ya fue verificado por otra cuenta."
+
+
+class DomainNotVerifiedError(DomainError):
+    code = "domain_not_verified"
+    default_message = "El dominio debe verificarse antes de ejecutar escaneos o pruebas."
+
+
+class DomainVerificationFailedError(DomainError):
+    code = "domain_verification_failed"
+    default_message = "No se pudo comprobar la propiedad del dominio."
+
+
+class OutOfScopeError(DomainError):
+    code = "out_of_scope"
+    default_message = "El objetivo está fuera del alcance autorizado."
+
+
+class EndpointNotWhitelistedError(OutOfScopeError):
+    code = "endpoint_not_whitelisted"
+    default_message = "El endpoint no está en la lista blanca de pruebas."
+
+
+class ToolNotAllowedError(DomainError):
+    code = "tool_not_allowed"
+    default_message = "La herramienta no está en la lista cerrada de herramientas permitidas."
+
+    def __init__(self, tool: str | None = None) -> None:
+        self.tool = tool
+        super().__init__()
+
+
+class LlmOutputRejectedError(DomainError):
+    code = "llm_output_rejected"
+    default_message = "La salida del modelo no pasó la validación y fue descartada."
