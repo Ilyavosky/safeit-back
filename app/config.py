@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = Field(default=15, ge=1)
     refresh_token_ttl_days: int = Field(default=7, ge=1)
 
+    auth_rate_limit_attempts: int = Field(default=5, ge=1)
+    auth_rate_limit_window_seconds: int = Field(default=60, ge=1)
+
     encryption_key: SecretStr
 
     llm_api_key: SecretStr | None = None

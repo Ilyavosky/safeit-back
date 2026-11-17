@@ -93,3 +93,13 @@ class ToolNotAllowedError(DomainError):
 class LlmOutputRejectedError(DomainError):
     code = "llm_output_rejected"
     default_message = "La salida del modelo no pasó la validación y fue descartada."
+
+
+class WeakPasswordError(DomainError):
+    code = "weak_password"
+    default_message = "La contraseña no cumple los requisitos mínimos."
+
+
+class RateLimitExceededError(DomainError):
+    code = "rate_limited"
+    default_message = "Demasiados intentos. Espera un momento e inténtalo de nuevo."
