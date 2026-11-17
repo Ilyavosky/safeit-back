@@ -24,7 +24,11 @@ _STATUS_BY_ERROR: tuple[tuple[type[errors.DomainError], int], ...] = (
     (errors.OutOfScopeError, 403),
     (errors.ToolNotAllowedError, 403),
     (errors.LlmOutputRejectedError, 422),
+    (errors.WeakPasswordError, 422),
+    (errors.RateLimitExceededError, 429),
 )
+
+_SECURITY_STATUSES = frozenset({401, 403, 429})
 
 _HTTP_CODES = {404: "not_found", 405: "method_not_allowed"}
 _HTTP_MESSAGES = {
@@ -59,7 +63,10 @@ def _response(
 
 async def _domain_error_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, errors.DomainError)
-    return _response(request, status_for(exc), exc.code, exc.message)
+    status = status_for(exc)
+    if status in _SECURITY_STATUSES:
+        log.warning("security_event", code=exc.code, status=status, path=request.url.path)
+    return _response(request, status, exc.code, exc.message)
 
 
 async def _validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
