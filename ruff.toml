@@ -1,0 +1,10 @@
+target-version = "py312"
+line-length = 100
+extend-exclude = [".venv"]
+
+[lint]
+select = ["E", "F", "I", "B", "UP", "S", "C4", "SIM", "ASYNC", "PT", "RUF"]
+
+[lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+"app/interfaces/api/error_handlers.py" = ["S101"]
