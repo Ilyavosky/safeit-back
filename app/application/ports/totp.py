@@ -1,0 +1,9 @@
+from typing import Protocol
+
+
+class TotpService(Protocol):
+    def generate_secret(self) -> str: ...
+
+    def provisioning_uri(self, secret: str, email: str) -> str: ...
+
+    def verify(self, secret: str, code: str) -> bool: ...
