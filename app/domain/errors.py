@@ -61,6 +61,11 @@ class DomainAlreadyClaimedError(ConflictError):
     default_message = "Este dominio ya fue verificado por otra cuenta."
 
 
+class InvalidDomainNameError(DomainError):
+    code = "invalid_domain_name"
+    default_message = "El nombre de dominio no es válido. Usa el formato ejemplo.com."
+
+
 class DomainNotVerifiedError(DomainError):
     code = "domain_not_verified"
     default_message = "El dominio debe verificarse antes de ejecutar escaneos o pruebas."
