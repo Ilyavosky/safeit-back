@@ -35,6 +35,35 @@ uv run pytest
 
 Los mismos pasos corren en GitHub Actions (`.github/workflows/ci.yml`).
 
+## Autenticación
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/auth/register` | Alta de usuario (rol `viewer`) |
+| POST | `/auth/login` | Devuelve `access_token` y fija la cookie `safeit_refresh`; con MFA activo devuelve `mfa_required` y un `mfa_token` |
+| POST | `/auth/mfa/verify` | Completa el login con el código TOTP |
+| POST | `/auth/mfa/setup` | Genera el secreto TOTP y el `otpauth_uri` para el QR (requiere sesión) |
+| POST | `/auth/mfa/enable` | Activa el MFA confirmando un código (requiere sesión) |
+| POST | `/auth/refresh` | Rota el refresh token; reutilizar uno ya rotado revoca toda la familia |
+| POST | `/auth/logout` | Revoca la sesión y borra la cookie |
+| GET / PATCH | `/users/me` | Perfil; para cambiar correo o contraseña se exige la contraseña actual |
+
+El access token (15 min) va en `Authorization: Bearer`. El refresh token viaja solo en cookie `httpOnly` con `SameSite=Strict` y ruta `/auth`, y en la base se guarda su hash. Los roles se leen de la base en cada petición, así que un cambio de rol aplica de inmediato.
+
+Primer administrador:
+
+```
+uv run python -m scripts.seed_admin --email admin@ejemplo.com
+```
+
+## Pruebas contra PostgreSQL
+
+Las pruebas de repositorios se omiten si no existe `TEST_DATABASE_URL`. Deben apuntar a una base vacía: crean las tablas `users` y `refresh_tokens` desde `../bd/supabase/migrations/01_safeit_auth.sql` y las borran al terminar. Si `public.users` ya existe, se omiten para no tocar datos.
+
+```
+TEST_DATABASE_URL=postgresql://usuario:clave@localhost:5432/safeit_test uv run pytest tests/integration
+```
+
 ## Estructura
 
 ```
