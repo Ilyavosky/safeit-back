@@ -1,0 +1,9 @@
+from typing import Protocol
+
+
+class DatabasePort(Protocol):
+    async def open(self) -> None: ...
+
+    async def close(self) -> None: ...
+
+    async def ping(self) -> bool: ...
