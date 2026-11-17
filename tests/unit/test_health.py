@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import FakeDatabase
+from tests.fakes import FakeDatabase
 
 
 def test_health_returns_ok_when_database_is_up(client: TestClient) -> None:

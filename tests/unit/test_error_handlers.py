@@ -22,6 +22,8 @@ CASES: list[tuple[errors.DomainError, int, str]] = [
     (errors.EndpointNotWhitelistedError(), 403, "endpoint_not_whitelisted"),
     (errors.ToolNotAllowedError("bash"), 403, "tool_not_allowed"),
     (errors.LlmOutputRejectedError(), 422, "llm_output_rejected"),
+    (errors.WeakPasswordError(), 422, "weak_password"),
+    (errors.RateLimitExceededError(), 429, "rate_limited"),
     (errors.DomainError(), 400, "domain_error"),
 ]
 
