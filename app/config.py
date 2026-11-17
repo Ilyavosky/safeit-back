@@ -15,9 +15,12 @@ class Settings(BaseSettings):
     )
 
     environment: Literal["dev", "prod"] = "dev"
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     cors_origins: list[str] = ["http://localhost:3000"]
 
     database_url: SecretStr
+    db_pool_min_size: int = Field(default=1, ge=1)
+    db_pool_max_size: int = Field(default=10, ge=1)
     redis_url: str = "redis://localhost:6379/0"
 
     jwt_secret: SecretStr = Field(min_length=32)
@@ -48,4 +51,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()  # type: ignore[call-arg]
+    return Settings()
