@@ -140,6 +140,37 @@ uv run python -m scripts.seed_lab_target --domain-id <uuid> --url https://lab.tu
 
 Severidad base cuando el hallazgo no trae CVE: info 5, low 20, medium 45, high 70, critical 90. Con CVE, se usa el mayor `priority_score` de sus CVE.
 
+## Pipeline de LLM
+
+Tras las pruebas, el mismo job analiza los hallazgos y genera el reporte. El modelo propone y el sistema valida: nada de lo que devuelve se ejecuta ni se guarda sin pasar por las reglas del dominio.
+
+| Paso | Qué propone el modelo | Qué valida el sistema |
+|---|---|---|
+| Plan | pruebas por endpoint | herramienta activa en `allowed_tools`, parámetros dentro de la política, endpoint en lista blanca y en alcance; si falla, se usa el planificador fijo |
+| Correlación | CVE por hallazgo | solo CVE que existen en `cve_catalog`; el resto se descarta y se recalcula la prioridad |
+| Falsos positivos | veredicto con justificación | sin justificación no se guarda |
+| Reporte | resumen y acciones | solo hallazgos del escaneo, una acción por hallazgo, prioridades ordenadas por el sistema |
+
+Cada llamada queda en `llm_decisions` (modelo, hash de entrada, salida JSON, `validated`). Banners, cabeceras y evidencia viajan dentro de `<datos_no_confiables>` con un límite aleatorio, truncados y sin caracteres de control, y nunca en el mensaje de sistema. Los prompts están en `app/infrastructure/llm/prompts/`.
+
+Variables: `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`, `LLM_MAX_TOKENS_PER_SCAN`, `LLM_REQUEST_TIMEOUT_SECONDS`, `LLM_STEP_TIMEOUT_SECONDS`. Sin `LLM_API_KEY` y `LLM_MODEL` el sistema funciona con el planificador fijo y un reporte de respaldo. La suite usa `FakeLlmGateway`, sin red ni clave.
+
+## Hallazgos, reportes y dashboard
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| GET | `/findings` | cualquiera | Listado con `severity`, `status`, `asset_id`, `domain_id`, `scan_id`, `sort` (`priority` o `detected`), `cursor` y `limit` (máx. 100) |
+| GET | `/findings/{id}` | cualquiera | Detalle |
+| PATCH | `/findings/{id}/status` | analyst, admin | Cambia `open`, `in_progress`, `fixed`; reabrir un resuelto exige `reason` |
+| GET | `/reports/{scanId}` | cualquiera | Resumen, cifras por severidad y recomendaciones por prioridad |
+| GET | `/reports/{scanId}/pdf` | cualquiera | PDF con resumen ejecutivo, gráfica por severidad y recomendaciones |
+| PATCH | `/recommendations/{id}` | analyst, admin | `pending`, `in_progress`, `done`, `dismissed` |
+| GET | `/dashboard/summary` | cualquiera | Conteos por severidad, activos, escaneos y últimos hallazgos (`scan_id` o `domain_id` opcionales) |
+
+El campo `status` de un hallazgo se calcula: `discovered` (escaneo en curso), `in_analysis` (escaneo terminado sin reporte), `confirmed`, `false_positive`, `in_remediation` y `resolved`. Los conteos excluyen falsos positivos y son los mismos en el reporte, el PDF y el dashboard. Sin `scan_id`, el dashboard usa el último escaneo de pruebas terminado de cada dominio. Los recursos de otro usuario responden 404.
+
+El OpenAPI para el frontend se genera con `uv run python -m scripts.export_openapi` (escribe `openapi.json`).
+
 ## Pruebas contra PostgreSQL
 
 Las pruebas de repositorios se omiten si no existe `TEST_DATABASE_URL`. Deben apuntar a una base vacía: cargan las migraciones `01` a `06` de `../bd/supabase/migrations` y limpian el esquema `public` al terminar. Si `public.users` ya existe, se omiten para no tocar datos. La `07` (RLS) y la `08` (semillas) no se cargan porque la `07` usa los roles de Supabase.
@@ -154,7 +185,7 @@ TEST_DATABASE_URL=postgresql://usuario:clave@localhost:5432/safeit_test uv run p
 app/
   domain/            entidades, reglas y errores; no importa nada de otras capas
   application/       puertos y casos de uso; solo importa domain
-  infrastructure/    base de datos, seguridad, verificadores de dominio, feeds de CVE, ejecutores de herramientas, recon, cola de Celery, logging y, más adelante, LLM
+  infrastructure/    base de datos, seguridad, verificadores de dominio, feeds de CVE, ejecutores de herramientas, recon, cola de Celery, cliente y prompts del LLM, PDF de reportes y logging
   interfaces/api/    routers, manejo de errores y middlewares
   container.py       arma las dependencias
   config.py          variables de entorno validadas
