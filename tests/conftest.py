@@ -30,6 +30,13 @@ from tests.fakes import (
     InMemoryUserRepository,
 )
 from tests.fakes_cve import FakeEpss, FakeKev, FakeNvd, InMemoryCveRepository
+from tests.fakes_findings import InMemoryFindingQueryRepository
+from tests.fakes_llm import (
+    FakeLlmGateway,
+    InMemoryFindingReviewRepository,
+    InMemoryLlmDecisionRepository,
+    InMemoryReportRepository,
+)
 from tests.fakes_recon import (
     FakeEnumerator,
     FakeProber,
@@ -159,6 +166,40 @@ def tools_repo() -> InMemoryToolRepository:
 
 
 @pytest.fixture
+def findings_repo(test_runs_repo: InMemoryTestRunRepository) -> InMemoryFindingRepository:
+    return InMemoryFindingRepository(test_runs_repo)
+
+
+@pytest.fixture
+def llm() -> FakeLlmGateway:
+    return FakeLlmGateway()
+
+
+@pytest.fixture
+def llm_decisions() -> InMemoryLlmDecisionRepository:
+    return InMemoryLlmDecisionRepository()
+
+
+@pytest.fixture
+def reports_repo() -> InMemoryReportRepository:
+    return InMemoryReportRepository()
+
+
+@pytest.fixture
+def finding_query(
+    findings_repo: InMemoryFindingRepository,
+    test_runs_repo: InMemoryTestRunRepository,
+    scans_repo: InMemoryScanRepository,
+    endpoints_repo: InMemoryEndpointRepository,
+    domains_repo: InMemoryDomainRepository,
+    reports_repo: InMemoryReportRepository,
+) -> InMemoryFindingQueryRepository:
+    return InMemoryFindingQueryRepository(
+        findings_repo, test_runs_repo, scans_repo, endpoints_repo, domains_repo, reports_repo
+    )
+
+
+@pytest.fixture
 def scheduler() -> ImmediateScheduler:
     return ImmediateScheduler()
 
@@ -183,6 +224,11 @@ def make_client(
     endpoints_repo: InMemoryEndpointRepository,
     tools_repo: InMemoryToolRepository,
     test_runs_repo: InMemoryTestRunRepository,
+    findings_repo: InMemoryFindingRepository,
+    llm: FakeLlmGateway,
+    llm_decisions: InMemoryLlmDecisionRepository,
+    reports_repo: InMemoryReportRepository,
+    finding_query: InMemoryFindingQueryRepository,
     scheduler: ImmediateScheduler,
     runners: dict[str, FakeRunner],
     assets_repo: InMemoryAssetRepository,
@@ -195,6 +241,7 @@ def make_client(
     def factory(
         database: FakeDatabase | None = None,
         custom_settings: Settings | None = None,
+        use_llm: bool = False,
     ) -> TestClient:
         container = build_container(
             custom_settings or settings,
@@ -214,7 +261,14 @@ def make_client(
             endpoints=endpoints_repo,
             tools=tools_repo,
             test_runs=test_runs_repo,
-            findings=InMemoryFindingRepository(test_runs_repo),
+            findings=findings_repo,
+            llm=llm if use_llm else None,
+            llm_decisions=llm_decisions,
+            finding_review=InMemoryFindingReviewRepository(
+                findings_repo, test_runs_repo, endpoints_repo
+            ),
+            reports=reports_repo,
+            finding_query=finding_query,
             tool_registry=FakeRegistry(runners),
             scheduler=scheduler,
             assets=assets_repo,

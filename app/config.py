@@ -48,6 +48,10 @@ class Settings(BaseSettings):
 
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
+    llm_base_url: str = "https://api.anthropic.com"
+    llm_max_tokens_per_scan: int = Field(default=200000, ge=1000)
+    llm_request_timeout_seconds: int = Field(default=60, ge=5)
+    llm_step_timeout_seconds: int = Field(default=300, ge=10)
 
     @field_validator("encryption_key")
     @classmethod

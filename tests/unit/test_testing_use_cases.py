@@ -5,6 +5,7 @@ import pytest
 from app.application.ports.testing import ToolOutput
 from app.application.use_cases.audit.record_action import RecordAction
 from app.application.use_cases.cve.lookup_cve import LookupCve
+from app.application.use_cases.llm.plan_source import FixedPlanSource
 from app.application.use_cases.testing.read_scans import GetScan, ListScanFindings, ListTestRuns
 from app.application.use_cases.testing.run_scan_tests import RunScanTests
 from app.application.use_cases.testing.start_tests import StartTests
@@ -104,7 +105,7 @@ class Env:
             cves=self.cves,
             lookup_cve=lookup,
             registry=FakeRegistry(self.runners),
-            planner=FixedProbePlanner(),
+            plan_source=FixedPlanSource(FixedProbePlanner()),
             cipher=self.cipher,
             audit=audit,
             clock=self.clock,

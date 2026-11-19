@@ -19,6 +19,7 @@ class TestRun:
     status: JobStatus
     started_at: datetime | None = None
     finished_at: datetime | None = None
+    decision_id: UUID | None = None
 
     def start(self, at: datetime) -> "TestRun":
         return replace(self, status=JobStatus.RUNNING, started_at=at)

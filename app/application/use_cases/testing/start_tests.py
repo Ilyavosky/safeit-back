@@ -1,6 +1,7 @@
 from uuid import UUID, uuid4
 
 from app.application.ports.clock import Clock
+from app.application.ports.llm import ScanFinalizer
 from app.application.ports.repositories import DomainRepository
 from app.application.ports.testing import ScanScheduler
 from app.application.ports.testing_repositories import EndpointRepository, ScanRepository
@@ -24,6 +25,7 @@ class StartTests:
         scheduler: ScanScheduler,
         audit: RecordAction,
         clock: Clock,
+        finalizer: ScanFinalizer | None = None,
     ) -> None:
         self._domains = domains
         self._endpoints = endpoints
@@ -32,6 +34,7 @@ class StartTests:
         self._scheduler = scheduler
         self._audit = audit
         self._clock = clock
+        self._finalizer = finalizer
 
     async def execute(self, user: User, domain_id: UUID) -> Scan:
         domain = await load_domain(self._domains, user, domain_id, owner_only=False)
@@ -61,6 +64,8 @@ class StartTests:
 
         async def job() -> None:
             await self._runner.execute(scan_id)
+            if self._finalizer is not None:
+                await self._finalizer.execute(scan_id)
 
         self._scheduler.schedule(job)
         return scan

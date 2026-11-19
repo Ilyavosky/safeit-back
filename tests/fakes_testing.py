@@ -43,6 +43,9 @@ class InMemoryToolRepository:
     async def get_by_name(self, name: str) -> AllowedTool | None:
         return self.tools.get(name)
 
+    async def list_active(self) -> list[AllowedTool]:
+        return [t for t in self.tools.values() if t.active]
+
 
 class InMemoryTestRunRepository:
     def __init__(self) -> None:

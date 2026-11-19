@@ -5,10 +5,10 @@ import structlog
 
 from app.application.ports.clock import Clock
 from app.application.ports.cve_catalog import CveRepository
+from app.application.ports.llm import PlanSource
 from app.application.ports.repositories import DomainRepository
 from app.application.ports.secret_cipher import SecretCipher
 from app.application.ports.testing import (
-    ProbePlanner,
     ToolExecutionError,
     ToolOutput,
     ToolRegistry,
@@ -52,7 +52,7 @@ class RunScanTests:
         cves: CveRepository,
         lookup_cve: LookupCve,
         registry: ToolRegistry,
-        planner: ProbePlanner,
+        plan_source: PlanSource,
         cipher: SecretCipher,
         audit: RecordAction,
         clock: Clock,
@@ -66,7 +66,7 @@ class RunScanTests:
         self._cves = cves
         self._lookup_cve = lookup_cve
         self._registry = registry
-        self._planner = planner
+        self._plan_source = plan_source
         self._cipher = cipher
         self._audit = audit
         self._clock = clock
@@ -101,18 +101,27 @@ class RunScanTests:
         if domain is None or not domain.is_verified:
             return []
         endpoints = {e.id: e for e in await self._endpoints.list_testable(domain.id)}
-        plan = self._planner.plan(list(endpoints.values()))
+        tools = {t.name: t for t in await self._tools.list_active()}
+        proposal = await self._plan_source.plan(scan, domain.name, list(endpoints.values()), tools)
+        plan = proposal.tests
         outcomes: list[bool] = []
         for item in plan:
             endpoint = endpoints.get(item.endpoint_id)
             if endpoint is None:
                 outcomes.append(False)
                 continue
-            outcomes.append(await self._run_one(scan, domain.name, endpoint, item))
+            outcomes.append(
+                await self._run_one(scan, domain.name, endpoint, item, proposal.decision_id)
+            )
         return outcomes
 
     async def _run_one(
-        self, scan: Scan, domain_name: str, endpoint: Endpoint, item: PlannedTest
+        self,
+        scan: Scan,
+        domain_name: str,
+        endpoint: Endpoint,
+        item: PlannedTest,
+        decision_id: UUID | None,
     ) -> bool:
         tool = await self._tools.get_by_name(item.tool_name)
         if tool is None or not tool.active:
@@ -132,6 +141,7 @@ class RunScanTests:
             tool_name=tool.name,
             params=params,
             status=JobStatus.QUEUED,
+            decision_id=decision_id,
         )
         await self._test_runs.add(run)
         run = run.start(self._clock.now())

@@ -15,8 +15,9 @@ class PostgresTestRunRepository:
     async def add(self, run: TestRun) -> None:
         async with self._pool.connection() as conn:
             await conn.execute(
-                "insert into public.test_runs (id, scan_id, endpoint_id, tool_id, params, status) "
-                "values (%s, %s, %s, %s, %s, %s)",
+                "insert into public.test_runs "
+                "(id, scan_id, endpoint_id, tool_id, params, status, decision_id) "
+                "values (%s, %s, %s, %s, %s, %s, %s)",
                 (
                     run.id,
                     run.scan_id,
@@ -24,6 +25,7 @@ class PostgresTestRunRepository:
                     run.tool_id,
                     Jsonb(run.params),
                     run.status.value,
+                    run.decision_id,
                 ),
             )
 
@@ -39,7 +41,7 @@ class PostgresTestRunRepository:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
                 "select r.id, r.scan_id, r.endpoint_id, r.tool_id, t.name, r.params, r.status, "
-                "r.started_at, r.finished_at "
+                "r.started_at, r.finished_at, r.decision_id "
                 "from public.test_runs r join public.allowed_tools t on t.id = r.tool_id "
                 "where r.scan_id = %s order by r.started_at nulls last, r.id",
                 (scan_id,),
@@ -56,6 +58,7 @@ class PostgresTestRunRepository:
                 status=JobStatus(row[6]),
                 started_at=row[7],
                 finished_at=row[8],
+                decision_id=row[9],
             )
             for row in rows
         ]

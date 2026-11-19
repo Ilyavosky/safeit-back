@@ -7,6 +7,7 @@ from psycopg_pool import AsyncConnectionPool
 from app.application.ports.testing import ToolOutput
 from app.application.use_cases.audit.record_action import RecordAction
 from app.application.use_cases.cve.lookup_cve import LookupCve
+from app.application.use_cases.llm.plan_source import FixedPlanSource
 from app.application.use_cases.testing.run_scan_tests import RunScanTests
 from app.domain.entities.cve import CveRecord
 from app.domain.entities.finding import Finding
@@ -126,7 +127,7 @@ async def test_full_run_against_postgres(migrated_pool: AsyncConnectionPool[Any]
         cves=cves,
         lookup_cve=LookupCve(cves, FakeNvd(), FakeEpss(), FakeKev(), clock),
         registry=FakeRegistry(runners),
-        planner=FixedProbePlanner(),
+        plan_source=FixedPlanSource(FixedProbePlanner()),
         cipher=AesGcmCipher(KEY),
         audit=RecordAction(PostgresAuditRepository(migrated_pool)),
         clock=clock,

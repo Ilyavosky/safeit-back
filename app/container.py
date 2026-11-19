@@ -2,10 +2,18 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
+from app.application.llm_budget import TokenBudget
 from app.application.ports.clock import Clock
 from app.application.ports.cve_catalog import CveRepository, EpssFeed, KevFeed, NvdFeed
 from app.application.ports.database import DatabasePort
 from app.application.ports.domain_verifier import DomainVerifier
+from app.application.ports.findings_query import FindingQueryRepository
+from app.application.ports.llm import (
+    FindingReviewRepository,
+    LlmDecisionRepository,
+    LlmGateway,
+    PlanSource,
+)
 from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.rate_limiter import RateLimiter
 from app.application.ports.recon import (
@@ -16,6 +24,7 @@ from app.application.ports.recon import (
     SubdomainEnumerator,
 )
 from app.application.ports.recon_repositories import AssetRepository, ReconScanRepository
+from app.application.ports.reports import ReportRenderer, ReportRepository
 from app.application.ports.repositories import (
     AuditRepository,
     DomainRepository,
@@ -48,9 +57,19 @@ from app.application.use_cases.domains.add_domain import AddDomain
 from app.application.use_cases.domains.get_domain import GetDomain
 from app.application.use_cases.domains.list_domains import ListDomains
 from app.application.use_cases.domains.verify_domain import VerifyDomain
+from app.application.use_cases.findings.queries import GetFinding, ListFindings
+from app.application.use_cases.findings.update_status import UpdateFindingStatus
+from app.application.use_cases.llm.analyze_findings import AnalyzeFindings
+from app.application.use_cases.llm.finalize_scan import FinalizeScan
+from app.application.use_cases.llm.generate_report import GenerateReport
+from app.application.use_cases.llm.plan_source import FixedPlanSource, LlmPlanSource
+from app.application.use_cases.llm.recorder import DecisionRecorder
 from app.application.use_cases.recon.assets import GetAsset, ListAssets, SetEndpointWhitelist
 from app.application.use_cases.recon.run_recon import ReconLimits, RunReconScan
 from app.application.use_cases.recon.start_recon import RescanAsset, StartReconScan
+from app.application.use_cases.reports.dashboard import GetDashboardSummary
+from app.application.use_cases.reports.get_report import GetReport, RenderReportPdf
+from app.application.use_cases.reports.update_recommendation import UpdateRecommendationStatus
 from app.application.use_cases.testing.read_scans import GetScan, ListScanFindings, ListTestRuns
 from app.application.use_cases.testing.run_scan_tests import RunScanTests
 from app.application.use_cases.testing.start_tests import StartTests
@@ -61,9 +80,13 @@ from app.infrastructure.db.audit_repository import PostgresAuditRepository
 from app.infrastructure.db.cve_repository import PostgresCveRepository
 from app.infrastructure.db.domain_repository import PostgresDomainRepository
 from app.infrastructure.db.endpoint_repository import PostgresEndpointRepository
+from app.infrastructure.db.finding_query_repository import PostgresFindingQueryRepository
 from app.infrastructure.db.finding_repository import PostgresFindingRepository
+from app.infrastructure.db.finding_review_repository import PostgresFindingReviewRepository
+from app.infrastructure.db.llm_decision_repository import PostgresLlmDecisionRepository
 from app.infrastructure.db.recon_scan_repository import PostgresReconScanRepository
 from app.infrastructure.db.refresh_token_repository import PostgresRefreshTokenRepository
+from app.infrastructure.db.report_repository import PostgresReportRepository
 from app.infrastructure.db.scan_repository import PostgresScanRepository
 from app.infrastructure.db.session import PostgresDatabase
 from app.infrastructure.db.test_run_repository import PostgresTestRunRepository
@@ -73,6 +96,7 @@ from app.infrastructure.feeds.epss_client import EpssClient
 from app.infrastructure.feeds.http import RetryingJsonClient
 from app.infrastructure.feeds.kev_client import KevClient
 from app.infrastructure.feeds.nvd_client import NvdClient
+from app.infrastructure.llm.http_gateway import HttpLlmGateway
 from app.infrastructure.net.safe_http import SafeHttpClient
 from app.infrastructure.queue.celery_app import create_celery
 from app.infrastructure.queue.celery_queue import CeleryReconQueue
@@ -81,6 +105,7 @@ from app.infrastructure.recon.dns_resolver import SystemHostResolver
 from app.infrastructure.recon.httpx_runner import HttpxRunner
 from app.infrastructure.recon.nmap_runner import NmapRunner
 from app.infrastructure.recon.subfinder_runner import SubfinderRunner
+from app.infrastructure.reports.pdf_renderer import ReportlabPdfRenderer
 from app.infrastructure.security.aes_gcm_cipher import AesGcmCipher
 from app.infrastructure.security.jwt_service import JwtTokenService
 from app.infrastructure.security.password_hasher import Argon2PasswordHasher
@@ -123,6 +148,15 @@ class Container:
     lookup_cve: LookupCve
     run_scan_tests: RunScanTests
     start_tests: StartTests
+    finalize_scan: FinalizeScan
+    generate_report: GenerateReport
+    list_findings: ListFindings
+    get_finding: GetFinding
+    update_finding_status: UpdateFindingStatus
+    get_report: GetReport
+    render_report_pdf: RenderReportPdf
+    update_recommendation: UpdateRecommendationStatus
+    dashboard: GetDashboardSummary
     get_scan: GetScan
     list_test_runs: ListTestRuns
     list_scan_findings: ListScanFindings
@@ -158,6 +192,12 @@ def build_container(
     findings: FindingRepository | None = None,
     tool_registry: ToolRegistry | None = None,
     planner: ProbePlanner | None = None,
+    llm: LlmGateway | None = None,
+    llm_decisions: LlmDecisionRepository | None = None,
+    finding_review: FindingReviewRepository | None = None,
+    reports: ReportRepository | None = None,
+    finding_query: FindingQueryRepository | None = None,
+    report_renderer: ReportRenderer | None = None,
     scheduler: ScanScheduler | None = None,
     assets: AssetRepository | None = None,
     recon_scans: ReconScanRepository | None = None,
@@ -215,6 +255,24 @@ def build_container(
         }
     )
     planner = planner or FixedProbePlanner()
+    llm_decisions = llm_decisions or PostgresLlmDecisionRepository(_pool_of(database))
+    finding_review = finding_review or PostgresFindingReviewRepository(_pool_of(database))
+    reports = reports or PostgresReportRepository(_pool_of(database))
+    finding_query = finding_query or PostgresFindingQueryRepository(_pool_of(database))
+    report_renderer = report_renderer or ReportlabPdfRenderer()
+    if llm is None and settings.llm_api_key and settings.llm_model:
+        llm = HttpLlmGateway(
+            api_key=settings.llm_api_key.get_secret_value(),
+            model=settings.llm_model,
+            base_url=settings.llm_base_url,
+            timeout_s=settings.llm_request_timeout_seconds,
+        )
+    budget = TokenBudget(settings.llm_max_tokens_per_scan)
+    recorder = DecisionRecorder(llm_decisions, budget, clock)
+    fixed_source = FixedPlanSource(planner)
+    plan_source: PlanSource = (
+        LlmPlanSource(llm, recorder, budget, fixed_source) if llm is not None else fixed_source
+    )
     scheduler = scheduler or AsyncioScanScheduler()
     run_scan_tests = RunScanTests(
         domains=domains,
@@ -226,11 +284,38 @@ def build_container(
         cves=cve_repository,
         lookup_cve=lookup_cve,
         registry=tool_registry,
-        planner=planner,
+        plan_source=plan_source,
         cipher=cipher,
         audit=record_action,
         clock=clock,
     )
+    generate_report = GenerateReport(
+        domains=domains,
+        review=finding_review,
+        reports=reports,
+        gateway=llm,
+        recorder=recorder,
+        budget=budget,
+        audit=record_action,
+        clock=clock,
+    )
+    finalize_scan = FinalizeScan(
+        scans,
+        AnalyzeFindings(
+            domains=domains,
+            review=finding_review,
+            cves=cve_repository,
+            gateway=llm,
+            recorder=recorder,
+            budget=budget,
+            cipher=cipher,
+            audit=record_action,
+        ),
+        generate_report,
+        record_action,
+        settings.llm_step_timeout_seconds,
+    )
+    get_report = GetReport(domains, scans, reports, finding_query)
     recon_queue = recon_queue or CeleryReconQueue(create_celery(settings))
     enumerator = enumerator or SubfinderRunner(process, settings.subfinder_bin)
     resolver = resolver or SystemHostResolver()
@@ -307,8 +392,24 @@ def build_container(
         lookup_cve=lookup_cve,
         run_scan_tests=run_scan_tests,
         start_tests=StartTests(
-            domains, endpoints, scans, run_scan_tests, scheduler, record_action, clock
+            domains,
+            endpoints,
+            scans,
+            run_scan_tests,
+            scheduler,
+            record_action,
+            clock,
+            finalize_scan,
         ),
+        finalize_scan=finalize_scan,
+        generate_report=generate_report,
+        list_findings=ListFindings(domains, finding_query),
+        get_finding=GetFinding(domains, finding_query),
+        update_finding_status=UpdateFindingStatus(domains, finding_query, record_action),
+        get_report=get_report,
+        render_report_pdf=RenderReportPdf(get_report, report_renderer, record_action),
+        update_recommendation=UpdateRecommendationStatus(domains, scans, reports, record_action),
+        dashboard=GetDashboardSummary(domains, scans, finding_query),
         get_scan=GetScan(domains, scans),
         list_test_runs=ListTestRuns(domains, scans, test_runs),
         list_scan_findings=ListScanFindings(domains, scans, findings),
