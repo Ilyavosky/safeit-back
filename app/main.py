@@ -9,7 +9,19 @@ from app.container import Container, build_container
 from app.infrastructure.logging import configure_logging
 from app.interfaces.api.error_handlers import register_error_handlers
 from app.interfaces.api.middleware.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
-from app.interfaces.api.routers import assets, audit, auth, cves, domains, health, scans, users
+from app.interfaces.api.routers import (
+    assets,
+    audit,
+    auth,
+    cves,
+    dashboard,
+    domains,
+    findings,
+    health,
+    reports,
+    scans,
+    users,
+)
 
 
 def create_app(container: Container | None = None) -> FastAPI:
@@ -53,6 +65,9 @@ def create_app(container: Container | None = None) -> FastAPI:
     app.include_router(cves.router)
     app.include_router(scans.router)
     app.include_router(assets.router)
+    app.include_router(findings.router)
+    app.include_router(reports.router)
+    app.include_router(dashboard.router)
     return app
 
 
