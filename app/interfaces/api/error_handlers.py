@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.domain import errors
+from app.domain.errors_queue import QueueUnavailableError
 
 log = structlog.get_logger(__name__)
 
@@ -19,6 +20,9 @@ _STATUS_BY_ERROR: tuple[tuple[type[errors.DomainError], int], ...] = (
     (errors.InvalidTokenError, 401),
     (errors.TokenReuseDetectedError, 401),
     (errors.PermissionDeniedError, 403),
+    (errors.InvalidCveIdError, 422),
+    (errors.FeedUnavailableError, 503),
+    (QueueUnavailableError, 503),
     (errors.InvalidDomainNameError, 422),
     (errors.DomainNotVerifiedError, 422),
     (errors.DomainVerificationFailedError, 422),

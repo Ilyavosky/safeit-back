@@ -9,7 +9,7 @@ from app.container import Container, build_container
 from app.infrastructure.logging import configure_logging
 from app.interfaces.api.error_handlers import register_error_handlers
 from app.interfaces.api.middleware.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
-from app.interfaces.api.routers import audit, auth, domains, health, users
+from app.interfaces.api.routers import assets, audit, auth, cves, domains, health, scans, users
 
 
 def create_app(container: Container | None = None) -> FastAPI:
@@ -22,6 +22,7 @@ def create_app(container: Container | None = None) -> FastAPI:
         try:
             yield
         finally:
+            await resolved.scheduler.aclose()
             await resolved.database.close()
 
     app = FastAPI(
@@ -49,6 +50,9 @@ def create_app(container: Container | None = None) -> FastAPI:
     app.include_router(users.router)
     app.include_router(domains.router)
     app.include_router(audit.router)
+    app.include_router(cves.router)
+    app.include_router(scans.router)
+    app.include_router(assets.router)
     return app
 
 

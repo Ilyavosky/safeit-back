@@ -34,6 +34,18 @@ class Settings(BaseSettings):
 
     encryption_key: SecretStr
 
+    nvd_api_key: SecretStr | None = None
+    cve_sync_max_lookups: int = Field(default=200, ge=0)
+
+    recon_timeout_seconds: int = Field(default=900, ge=30)
+    recon_max_assets: int = Field(default=200, ge=1)
+    subfinder_bin: str = "subfinder"
+    nmap_bin: str = "nmap"
+    httpx_bin: str = "httpx"
+
+    nuclei_bin: str = "nuclei"
+    testssl_bin: str = "testssl.sh"
+
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
 
@@ -47,6 +59,10 @@ class Settings(BaseSettings):
         if len(raw) != 32:
             raise ValueError("encryption_key must decode to 32 bytes for AES-256-GCM")
         return value
+
+    @property
+    def recon_stale_after_seconds(self) -> int:
+        return self.recon_timeout_seconds * 2
 
     @property
     def is_prod(self) -> bool:
