@@ -16,6 +16,7 @@ CASES: list[tuple[errors.DomainError, int, str]] = [
     (errors.InvalidTokenError(), 401, "invalid_token"),
     (errors.TokenReuseDetectedError(), 401, "token_reuse_detected"),
     (errors.PermissionDeniedError(), 403, "permission_denied"),
+    (errors.InvalidDomainNameError(), 422, "invalid_domain_name"),
     (errors.DomainNotVerifiedError(), 422, "domain_not_verified"),
     (errors.DomainVerificationFailedError(), 422, "domain_verification_failed"),
     (errors.OutOfScopeError(), 403, "out_of_scope"),

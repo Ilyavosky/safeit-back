@@ -19,6 +19,7 @@ _STATUS_BY_ERROR: tuple[tuple[type[errors.DomainError], int], ...] = (
     (errors.InvalidTokenError, 401),
     (errors.TokenReuseDetectedError, 401),
     (errors.PermissionDeniedError, 403),
+    (errors.InvalidDomainNameError, 422),
     (errors.DomainNotVerifiedError, 422),
     (errors.DomainVerificationFailedError, 422),
     (errors.OutOfScopeError, 403),

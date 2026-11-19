@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     auth_rate_limit_attempts: int = Field(default=5, ge=1)
     auth_rate_limit_window_seconds: int = Field(default=60, ge=1)
+    domain_verify_rate_limit_attempts: int = Field(default=10, ge=1)
 
     encryption_key: SecretStr
 

@@ -5,6 +5,7 @@ from app.application.ports.repositories import UserRepository
 from app.application.ports.secret_cipher import SecretCipher
 from app.application.ports.token_service import TokenService
 from app.application.ports.totp import TotpService
+from app.application.use_cases.audit.record_action import RecordAction
 from app.application.use_cases.auth.session import AuthRateLimiter, SessionIssuer, SessionTokens
 from app.domain.entities.user import User
 from app.domain.errors import ConflictError, InvalidMfaCodeError, InvalidTokenError
@@ -74,6 +75,7 @@ class VerifyMfa:
         cipher: SecretCipher,
         issuer: SessionIssuer,
         limiter: AuthRateLimiter,
+        audit: RecordAction,
     ) -> None:
         self._users = users
         self._tokens = tokens
@@ -81,6 +83,7 @@ class VerifyMfa:
         self._cipher = cipher
         self._issuer = issuer
         self._limiter = limiter
+        self._audit = audit
 
     async def execute(self, mfa_token: str, code: str, client_ip: str) -> SessionTokens:
         await self._limiter.check(f"mfa:ip:{client_ip}")
@@ -91,8 +94,13 @@ class VerifyMfa:
             raise InvalidTokenError
         secret = self._cipher.decrypt(user.totp_secret_enc, str(user.id))
         if not self._totp.verify(secret, code):
+            await self._audit.execute("auth.mfa_failed", user_id=user.id, detail={"ip": client_ip})
             raise InvalidMfaCodeError
-        return await self._issuer.open_session(user)
+        session = await self._issuer.open_session(user)
+        await self._audit.execute(
+            "auth.login", user_id=user.id, detail={"ip": client_ip, "mfa": True}
+        )
+        return session
 
 
 async def _require_user(users: UserRepository, user_id: UUID) -> User:
