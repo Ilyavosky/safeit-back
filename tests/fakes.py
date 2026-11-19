@@ -1,11 +1,17 @@
+import hashlib
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
+from app.domain.entities.audit_entry import AuditEntry
+from app.domain.entities.domain import Domain
 from app.domain.entities.refresh_token import RefreshToken
 from app.domain.entities.user import User
-from app.domain.errors import ConflictError
+from app.domain.errors import ConflictError, DomainAlreadyClaimedError
 from app.domain.value_objects.role import Role
+from app.domain.value_objects.verification_method import VerificationMethod
 
 
 class FakeDatabase:
@@ -99,3 +105,106 @@ class InMemoryRefreshTokenRepository:
 
     def active_count(self) -> int:
         return sum(1 for t in self.tokens.values() if t.revoked_at is None)
+
+
+class InMemoryAuditRepository:
+    def __init__(self) -> None:
+        self.entries: list[AuditEntry] = []
+        self.broken_at: int | None = None
+
+    async def record(
+        self,
+        *,
+        user_id: UUID | None,
+        action: str,
+        entity: str | None,
+        entity_id: UUID | None,
+        detail: Mapping[str, Any],
+    ) -> None:
+        prev_hash = self.entries[-1].hash if self.entries else None
+        entry_id = len(self.entries) + 1
+        digest = hashlib.sha256(f"{entry_id}|{prev_hash}|{action}".encode()).hexdigest()
+        self.entries.append(
+            AuditEntry(
+                id=entry_id,
+                user_id=user_id,
+                action=action,
+                entity=entity,
+                entity_id=entity_id,
+                detail=dict(detail),
+                prev_hash=prev_hash,
+                hash=digest,
+                created_at=datetime.now(UTC),
+            )
+        )
+
+    async def list_entries(
+        self,
+        *,
+        limit: int,
+        before_id: int | None,
+        user_id: UUID | None,
+        action: str | None,
+    ) -> list[AuditEntry]:
+        matching = [
+            e
+            for e in reversed(self.entries)
+            if (before_id is None or e.id < before_id)
+            and (user_id is None or e.user_id == user_id)
+            and (action is None or e.action == action)
+        ]
+        return matching[:limit]
+
+    async def first_broken_id(self) -> int | None:
+        return self.broken_at
+
+    def actions(self) -> list[str]:
+        return [e.action for e in self.entries]
+
+
+class InMemoryDomainRepository:
+    def __init__(self) -> None:
+        self.domains: dict[UUID, Domain] = {}
+
+    async def add(self, domain: Domain) -> None:
+        if await self.get_by_user_and_name(domain.user_id, domain.name) is not None:
+            raise ConflictError("Ya registraste este dominio.")
+        self.domains[domain.id] = domain
+
+    async def get_by_id(self, domain_id: UUID) -> Domain | None:
+        return self.domains.get(domain_id)
+
+    async def get_by_user_and_name(self, user_id: UUID, name: str) -> Domain | None:
+        return next(
+            (d for d in self.domains.values() if d.user_id == user_id and d.name == name), None
+        )
+
+    async def get_verified_by_name(self, name: str) -> Domain | None:
+        return next((d for d in self.domains.values() if d.name == name and d.is_verified), None)
+
+    async def list_by_user(self, user_id: UUID) -> list[Domain]:
+        return sorted((d for d in self.domains.values() if d.user_id == user_id), key=_by_name)
+
+    async def list_all(self) -> list[Domain]:
+        return sorted(self.domains.values(), key=_by_name)
+
+    async def save(self, domain: Domain) -> None:
+        if domain.is_verified:
+            other = await self.get_verified_by_name(domain.name)
+            if other is not None and other.id != domain.id:
+                raise DomainAlreadyClaimedError
+        self.domains[domain.id] = domain
+
+
+def _by_name(domain: Domain) -> str:
+    return domain.name
+
+
+class FakeDomainVerifier:
+    def __init__(self) -> None:
+        self.verified_names: set[str] = set()
+        self.calls: list[tuple[str, VerificationMethod, str]] = []
+
+    async def is_verified(self, name: str, method: VerificationMethod, token: str) -> bool:
+        self.calls.append((name, method, token))
+        return name in self.verified_names
