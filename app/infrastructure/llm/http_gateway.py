@@ -2,7 +2,7 @@ import json
 import time
 from collections.abc import Callable
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 import structlog
@@ -39,6 +39,7 @@ class HttpLlmGateway:
         api_key: str,
         model: str,
         base_url: str = "https://api.anthropic.com",
+        provider: Literal["anthropic", "openai"] = "anthropic",
         timeout_s: float = 60.0,
         max_seconds: float = 120.0,
         transport: httpx.AsyncBaseTransport | None = None,
@@ -47,6 +48,7 @@ class HttpLlmGateway:
         self._api_key = api_key
         self._model = model
         self._base_url = base_url.rstrip("/")
+        self._provider = provider
         self._timeout = timeout_s
         self._max_seconds = max_seconds
         self._transport = transport
@@ -110,37 +112,55 @@ class HttpLlmGateway:
         return LlmResponse(self._model, tokens, {"raw": text[:4000]}, None, error)
 
     async def _call(self, system: str, messages: list[dict[str, str]]) -> tuple[str, int]:
+        if self._provider == "openai":
+            url = f"{self._base_url}/chat/completions"
+            headers = {
+                "authorization": f"Bearer {self._api_key}",
+                "content-type": "application/json",
+            }
+            payload: dict[str, Any] = {
+                "model": self._model,
+                "max_tokens": MAX_OUTPUT_TOKENS,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "messages": [{"role": "system", "content": system}, *messages],
+            }
+        else:
+            url = f"{self._base_url}/v1/messages"
+            headers = {
+                "x-api-key": self._api_key,
+                "anthropic-version": API_VERSION,
+                "content-type": "application/json",
+            }
+            payload = {
+                "model": self._model,
+                "max_tokens": MAX_OUTPUT_TOKENS,
+                "temperature": 0,
+                "system": system,
+                "messages": messages,
+            }
         try:
             async with httpx.AsyncClient(
                 timeout=self._timeout, transport=self._transport
             ) as client:
-                response = await client.post(
-                    f"{self._base_url}/v1/messages",
-                    headers={
-                        "x-api-key": self._api_key,
-                        "anthropic-version": API_VERSION,
-                        "content-type": "application/json",
-                    },
-                    json={
-                        "model": self._model,
-                        "max_tokens": MAX_OUTPUT_TOKENS,
-                        "temperature": 0,
-                        "system": system,
-                        "messages": messages,
-                    },
-                )
+                response = await client.post(url, headers=headers, json=payload)
         except httpx.HTTPError as exc:
             raise LlmUnavailableError(f"Fallo de red: {type(exc).__name__}") from exc
         if response.status_code != 200:
             raise LlmUnavailableError(f"El proveedor respondió {response.status_code}.")
         try:
-            body = response.json()
-            text = "".join(b.get("text", "") for b in body["content"] if b.get("type") == "text")
-            usage = body.get("usage", {})
-            tokens = int(usage.get("input_tokens", 0)) + int(usage.get("output_tokens", 0))
-        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            return self._parse(response.json())
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
             raise LlmUnavailableError("Respuesta del proveedor ilegible.") from exc
-        return text, tokens
+
+    def _parse(self, body: dict[str, Any]) -> tuple[str, int]:
+        usage = body.get("usage", {})
+        if self._provider == "openai":
+            text = body["choices"][0]["message"]["content"] or ""
+            tokens = int(usage.get("prompt_tokens", 0)) + int(usage.get("completion_tokens", 0))
+            return text, tokens
+        text = "".join(b.get("text", "") for b in body["content"] if b.get("type") == "text")
+        return text, int(usage.get("input_tokens", 0)) + int(usage.get("output_tokens", 0))
 
 
 def _extract_json(text: str) -> Any:

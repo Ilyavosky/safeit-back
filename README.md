@@ -155,6 +155,8 @@ Cada llamada queda en `llm_decisions` (modelo, hash de entrada, salida JSON, `va
 
 Variables: `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`, `LLM_MAX_TOKENS_PER_SCAN`, `LLM_REQUEST_TIMEOUT_SECONDS`, `LLM_STEP_TIMEOUT_SECONDS`. Sin `LLM_API_KEY` y `LLM_MODEL` el sistema funciona con el planificador fijo y un reporte de respaldo. La suite usa `FakeLlmGateway`, sin red ni clave.
 
+Proveedores de LLM: `LLM_PROVIDER=anthropic` (por defecto, API de Mensajes) o `LLM_PROVIDER=openai` para cualquier API compatible con chat completions (por ejemplo Groq con `LLM_BASE_URL=https://api.groq.com/openai/v1`).
+
 ## Hallazgos, reportes y dashboard
 
 | Método | Ruta | Rol | Descripción |

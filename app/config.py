@@ -48,6 +48,7 @@ class Settings(BaseSettings):
 
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
+    llm_provider: Literal["anthropic", "openai"] = "anthropic"
     llm_base_url: str = "https://api.anthropic.com"
     llm_max_tokens_per_scan: int = Field(default=200000, ge=1000)
     llm_request_timeout_seconds: int = Field(default=60, ge=5)

@@ -265,6 +265,7 @@ def build_container(
             api_key=settings.llm_api_key.get_secret_value(),
             model=settings.llm_model,
             base_url=settings.llm_base_url,
+            provider=settings.llm_provider,
             timeout_s=settings.llm_request_timeout_seconds,
         )
     budget = TokenBudget(settings.llm_max_tokens_per_scan)
