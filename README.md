@@ -56,9 +56,30 @@ Primer administrador:
 uv run python -m scripts.seed_admin --email admin@ejemplo.com
 ```
 
+## Dominios y auditoría
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| POST | `/domains` | analyst, admin | Registra un dominio y devuelve dónde publicar la prueba de propiedad |
+| GET | `/domains` | cualquiera con sesión | Dominios propios (el admin ve todos) |
+| GET | `/domains/{id}` | dueño o admin | Detalle e instrucciones de verificación |
+| POST | `/domains/{id}/verify` | dueño con rol analyst o admin | Comprueba la propiedad; pasa el dominio a `verified` |
+| GET | `/audit` | admin | Bitácora, más reciente primero; filtros `user_id`, `action`, `before_id`, `limit` (máx. 200) |
+| GET | `/audit/verify` | admin | Recorre la cadena de hashes y devuelve `intact` y `broken_at_id` |
+
+Métodos de verificación: `dns_txt` (registro TXT en `_safeit-verify.<dominio>` con el token) y `file` (`/.well-known/safeit-<id>.txt` con el token como contenido). La verificación por archivo resuelve el DNS antes de conectar, rechaza cualquier dirección que no sea pública (loopback, privadas, link-local, metadata, CGNAT, IPv4 embebida en IPv6), se conecta a la IP ya validada, no sigue redirecciones y limita tiempo y tamaño de la respuesta. Un dominio verificado por una cuenta no puede verificarse en otra.
+
+Registro y los eventos de dominio y de autenticación (login, login fallido, MFA, reutilización de refresh token, cambios de perfil) escriben en `audit_log`. La cadena de hashes la calcula el trigger de la base; la tabla rechaza `UPDATE`, `DELETE` y `TRUNCATE`.
+
+Las cuentas nuevas son `viewer`: pueden listar pero no registrar dominios. Para subir el rol de una cuenta en una base local:
+
+```
+update public.users set role = 'analyst' where email = 'tu@correo.com';
+```
+
 ## Pruebas contra PostgreSQL
 
-Las pruebas de repositorios se omiten si no existe `TEST_DATABASE_URL`. Deben apuntar a una base vacía: crean las tablas `users` y `refresh_tokens` desde `../bd/supabase/migrations/01_safeit_auth.sql` y las borran al terminar. Si `public.users` ya existe, se omiten para no tocar datos.
+Las pruebas de repositorios se omiten si no existe `TEST_DATABASE_URL`. Deben apuntar a una base vacía: cargan las migraciones `01` a `06` de `../bd/supabase/migrations` y limpian el esquema `public` al terminar. Si `public.users` ya existe, se omiten para no tocar datos. La `07` (RLS) y la `08` (semillas) no se cargan porque la `07` usa los roles de Supabase.
 
 ```
 TEST_DATABASE_URL=postgresql://usuario:clave@localhost:5432/safeit_test uv run pytest tests/integration
@@ -70,7 +91,7 @@ TEST_DATABASE_URL=postgresql://usuario:clave@localhost:5432/safeit_test uv run p
 app/
   domain/            entidades, reglas y errores; no importa nada de otras capas
   application/       puertos y casos de uso; solo importa domain
-  infrastructure/    base de datos, logging y, más adelante, seguridad, recon, LLM, feeds y cola
+  infrastructure/    base de datos, seguridad, verificadores de dominio, logging y, más adelante, recon, LLM, feeds y cola
   interfaces/api/    routers, manejo de errores y middlewares
   container.py       arma las dependencias
   config.py          variables de entorno validadas
