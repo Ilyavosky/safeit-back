@@ -118,3 +118,13 @@ class WeakPasswordError(DomainError):
 class RateLimitExceededError(DomainError):
     code = "rate_limited"
     default_message = "Demasiados intentos. Espera un momento e inténtalo de nuevo."
+
+
+class InvalidStatusTransitionError(ConflictError):
+    code = "invalid_status_transition"
+    default_message = "La transición de estado solicitada no es válida."
+
+
+class InvalidCursorError(DomainError):
+    code = "invalid_cursor"
+    default_message = "El cursor de paginación no es válido."
