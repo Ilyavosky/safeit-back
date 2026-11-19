@@ -77,6 +77,69 @@ Las cuentas nuevas son `viewer`: pueden listar pero no registrar dominios. Para 
 update public.users set role = 'analyst' where email = 'tu@correo.com';
 ```
 
+## Reconocimiento y activos
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| POST | `/domains/{id}/scans` | dueño o admin con rol analyst o admin | Crea un escaneo de reconocimiento y responde 202; el trabajo lo toma el worker de Celery |
+| GET | `/scans/{id}` | dueño o admin | Estado: `queued`, `running`, `done` o `failed` |
+| GET | `/assets?domain=<uuid>` | dueño o admin | Activos del dominio (subdominios e IP) |
+| GET | `/assets/{id}` | dueño o admin | Activo con sus servicios y endpoints |
+| POST | `/assets/{id}/rescan` | dueño o admin con rol analyst o admin | Vuelve a escanear solo ese subdominio |
+| PUT | `/endpoints/{id}/whitelist` | dueño o admin con rol analyst o admin | Marca o desmarca un endpoint en alcance para las pruebas controladas |
+
+Flujo: subfinder lista subdominios, se resuelve el DNS, nmap (`-sT`, 100 puertos, versiones) escanea las IP y httpx (con detección de tecnologías) prueba los hosts. Antes de registrar nada, cada host debe pertenecer al dominio verificado y resolver solo a direcciones públicas: si apunta a loopback, red privada, link-local o metadata se descarta y queda en la bitácora (`recon.asset_discarded`, máx. 50 por escaneo). Un solo escaneo activo por dominio (se garantiza con un candado en la base) y tope de `RECON_MAX_ASSETS`. Si pasa `RECON_TIMEOUT_SECONDS` el escaneo termina en `failed`; un escaneo que quedó colgado más del doble de ese tiempo se marca `failed` al pedir el siguiente. La tabla `scans` no tiene columna de motivo, así que el motivo del fallo (`timeout`, `error`, `domain_not_verified`, `queue_unavailable`) se guarda en `scan.recon_finished`. Si falta alguna herramienta, el escaneo sigue con lo que pudo y deja `warnings` en esa misma entrada.
+
+Limitación conocida: "dirección ajena" significa no pública. Una IP pública de un tercero a la que apunte un subdominio verificado no se puede distinguir sin datos de propiedad, así que sí entra en alcance.
+
+Los endpoints descubiertos quedan con `whitelisted = false`; hay que habilitarlos con el `PUT` de arriba antes de lanzar pruebas.
+
+Cola y worker (Redis + Celery):
+
+```
+docker run -d --name safeit-redis -p 6379:6379 redis:7-alpine
+uv run celery -A app.infrastructure.queue.tasks:celery_app worker --concurrency=2 --loglevel=INFO
+```
+
+Si Redis no responde, `POST /domains/{id}/scans` devuelve 503 (`queue_unavailable`), el escaneo queda `failed` y el dominio se libera. Para correr el worker aislado, `deploy/scanner/Dockerfile` instala nmap, subfinder, httpx (como `pd-httpx`), nuclei y testssl.sh con un usuario sin privilegios, y `deploy/docker-compose.yml` levanta Redis y el worker con sistema de archivos de solo lectura, sin capacidades extra y con límites de CPU, memoria y procesos. Las versiones de las herramientas están fijadas en el Dockerfile pero la imagen no se construyó en el entorno de desarrollo; compruébalas al hacer el primer `docker compose build`. La prueba `tests/integration/test_recon_live.py` (marca `slow`) corre contra un objetivo real propio: `SAFEIT_LIVE_TARGET=lab.tudominio.com uv run pytest -m slow`.
+
+## Catálogo CVE y puntaje de riesgo
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| GET | `/cves/{cve_id}` | cualquiera con sesión | CVSS, vector, EPSS, pertenencia a CISA KEV y `priority_score`; si el CVE no está en el catálogo se consulta en NVD y se guarda |
+
+El catálogo se llena con los CVE de CISA KEV (NVD con `hasKev`), los consultados bajo demanda y los que aún no tienen CVSS (hasta `CVE_SYNC_MAX_LOOKUPS`). EPSS se consulta en lotes de 100 y KEV se lee del JSON de CISA con caché de una hora. Preferencia de CVSS: v3.1, v3.0, v4.0 y v2. Sin `NVD_API_KEY` se espera 6 s entre peticiones; con clave, 0,7 s.
+
+```
+uv run python -m scripts.sync_cve_catalog
+```
+
+La sincronización es idempotente (no toca filas sin datos nuevos) y, si un feed falla, deja un aviso en el log y conserva el catálogo existente. La sincronización periódica con Celery beat no está programada todavía; por ahora se corre el script a mano o con cron.
+
+Fórmula: `priority_score = min(100, CVSS × 10 + EPSS × 20)`, con piso de 90 si está en KEV y vacío si no hay ningún dato.
+
+## Pruebas controladas
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| POST | `/domains/{id}/tests` | dueño o admin con rol analyst o admin | Encola las pruebas y responde 202 con el escaneo |
+| GET | `/scans/{id}` | dueño o admin | Estado del escaneo |
+| GET | `/scans/{id}/test-runs` | dueño o admin | Ejecuciones por herramienta |
+| GET | `/scans/{id}/findings` | dueño o admin | Hallazgos ordenados por prioridad (sin la evidencia cifrada) |
+
+Solo se prueban endpoints marcados `whitelisted` cuyo activo está `in_scope`, de un dominio verificado. El planificador es fijo: `headers` para cada endpoint, `testssl` una vez por host HTTPS y `nuclei` con las etiquetas `cve`, `exposure`, `misconfig`, `tech`. Los parámetros se validan contra `allowed_tools`: nuclei rechaza etiquetas fuera de la lista o en la lista negra (`dos`, `intrusive`, `fuzz`, `bruteforce`) y limita la tasa a 50. Los procesos se lanzan sin shell, con argumentos fijos y sin heredar variables de entorno sensibles; `headers` conecta solo a IP públicas ya resueltas. Resultados y evidencia se guardan cifrados (AES-GCM).
+
+Si una herramienta no está instalada, esa ejecución queda en `failed` y el resto sigue. Rutas de los binarios: `NUCLEI_BIN` y `TESTSSL_BIN`.
+
+Los endpoints salen del reconocimiento. Para registrar uno a mano sin correr el recon:
+
+```
+uv run python -m scripts.seed_lab_target --domain-id <uuid> --url https://lab.tudominio.com/
+```
+
+Severidad base cuando el hallazgo no trae CVE: info 5, low 20, medium 45, high 70, critical 90. Con CVE, se usa el mayor `priority_score` de sus CVE.
+
 ## Pruebas contra PostgreSQL
 
 Las pruebas de repositorios se omiten si no existe `TEST_DATABASE_URL`. Deben apuntar a una base vacía: cargan las migraciones `01` a `06` de `../bd/supabase/migrations` y limpian el esquema `public` al terminar. Si `public.users` ya existe, se omiten para no tocar datos. La `07` (RLS) y la `08` (semillas) no se cargan porque la `07` usa los roles de Supabase.
@@ -91,7 +154,7 @@ TEST_DATABASE_URL=postgresql://usuario:clave@localhost:5432/safeit_test uv run p
 app/
   domain/            entidades, reglas y errores; no importa nada de otras capas
   application/       puertos y casos de uso; solo importa domain
-  infrastructure/    base de datos, seguridad, verificadores de dominio, logging y, más adelante, recon, LLM, feeds y cola
+  infrastructure/    base de datos, seguridad, verificadores de dominio, feeds de CVE, ejecutores de herramientas, recon, cola de Celery, logging y, más adelante, LLM
   interfaces/api/    routers, manejo de errores y middlewares
   container.py       arma las dependencias
   config.py          variables de entorno validadas
