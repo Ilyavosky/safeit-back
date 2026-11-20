@@ -53,9 +53,9 @@ class HttpLlmGateway:
         transport: httpx.AsyncBaseTransport | None = None,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
-        self._api_key = api_key
-        self._model = model
-        self._base_url = base_url.rstrip("/")
+        self._api_key = api_key.strip()
+        self._model = model.strip()
+        self._base_url = base_url.strip().rstrip("/")
         self._provider = provider
         self._timeout = timeout_s
         self._max_seconds = max_seconds
@@ -162,7 +162,9 @@ class HttpLlmGateway:
         except httpx.HTTPError as exc:
             raise LlmUnavailableError(f"Fallo de red: {type(exc).__name__}") from exc
         if response.status_code != 200:
-            raise LlmUnavailableError(f"El proveedor respondió {response.status_code}.")
+            raise LlmUnavailableError(
+                f"El proveedor respondió {response.status_code}: {response.text[:200]}"
+            )
         try:
             return self._parse(response.json())
         except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
