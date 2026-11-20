@@ -5,7 +5,7 @@ RUN go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.6.7 \
  && go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.3.10 \
  && mv /out/httpx /out/pd-httpx
 
-FROM python:3.13-slim-bookworm
+FROM python:3.15-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_PROJECT_ENVIRONMENT=/opt/venv
 RUN apt-get update \
  && apt-get install -y --no-install-recommends nmap git openssl bsdmainutils dnsutils procps ca-certificates \
