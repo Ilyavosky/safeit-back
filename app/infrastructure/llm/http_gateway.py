@@ -11,6 +11,7 @@ from pydantic import BaseModel, ValidationError
 from app.application.ports.llm import (
     LlmResponse,
     PlanRequest,
+    PublicSummaryRequest,
     ReportRequest,
     ReviewRequest,
 )
@@ -18,11 +19,18 @@ from app.domain.entities.llm_proposals import (
     CorrelationProposal,
     FalsePositiveProposal,
     PlanProposal,
+    PublicSummaryDraft,
     ReportDraft,
 )
 from app.domain.errors_llm import LlmUnavailableError
 from app.infrastructure.llm.prompts import load_prompt
-from app.infrastructure.llm.schemas import CorrelationOut, FalsePositiveOut, PlanOut, ReportOut
+from app.infrastructure.llm.schemas import (
+    CorrelationOut,
+    FalsePositiveOut,
+    PlanOut,
+    PublicSummaryOut,
+    ReportOut,
+)
 from app.infrastructure.llm.untrusted_data import wrap_untrusted
 
 log = structlog.get_logger(__name__)
@@ -73,6 +81,13 @@ class HttpLlmGateway:
 
     async def report(self, request: ReportRequest) -> LlmResponse[ReportDraft]:
         return await self._run("report", request, ReportOut, ReportOut.to_domain)
+
+    async def explain_public(
+        self, request: PublicSummaryRequest
+    ) -> LlmResponse[PublicSummaryDraft]:
+        return await self._run(
+            "public_summary", request, PublicSummaryOut, PublicSummaryOut.to_domain
+        )
 
     async def _run[M: _Output, T](
         self, prompt: str, request: Any, schema: type[M], convert: Callable[[M], T]

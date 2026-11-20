@@ -6,6 +6,7 @@ from uuid import UUID
 from app.application.ports.llm import (
     LlmResponse,
     PlanRequest,
+    PublicSummaryRequest,
     ReportRequest,
     ReviewItem,
     ReviewRequest,
@@ -16,6 +17,7 @@ from app.domain.entities.llm_proposals import (
     CorrelationProposal,
     FalsePositiveProposal,
     PlanProposal,
+    PublicSummaryDraft,
     ReportDraft,
 )
 from app.domain.entities.report import Recommendation, Report
@@ -36,6 +38,7 @@ class FakeLlmGateway:
         self.correlation_data: CorrelationProposal | None = None
         self.false_positive_data: FalsePositiveProposal | None = None
         self.report_data: ReportDraft | None = None
+        self.public_data: PublicSummaryDraft | None = None
         self.raw: Any = {"fake": True}
         self.tokens = 100
         self.unavailable = False
@@ -53,6 +56,11 @@ class FakeLlmGateway:
 
     async def correlate(self, request: ReviewRequest) -> LlmResponse[CorrelationProposal]:
         return self._respond("correlate", request, self.correlation_data)
+
+    async def explain_public(
+        self, request: PublicSummaryRequest
+    ) -> LlmResponse[PublicSummaryDraft]:
+        return self._respond("public", request, self.public_data)
 
     async def review_false_positives(
         self, request: ReviewRequest

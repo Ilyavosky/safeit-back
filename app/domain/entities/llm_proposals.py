@@ -51,3 +51,9 @@ class RecommendationDraft:
 class ReportDraft:
     summary: str
     recommendations: tuple[RecommendationDraft, ...]
+
+
+@dataclass(frozen=True)
+class PublicSummaryDraft:
+    summary: str
+    highlights: tuple[str, ...]

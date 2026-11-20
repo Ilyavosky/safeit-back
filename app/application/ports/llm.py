@@ -11,6 +11,7 @@ from app.domain.entities.llm_proposals import (
     CorrelationProposal,
     FalsePositiveProposal,
     PlanProposal,
+    PublicSummaryDraft,
     ReportDraft,
 )
 from app.domain.entities.planned_test import PlannedTest
@@ -90,6 +91,25 @@ class ReportRequest:
     findings: tuple[ReportFindingView, ...]
 
 
+@dataclass(frozen=True)
+class PublicHostView:
+    host: str
+    kind: str
+    http_status: int | None
+    title: str | None
+    technologies: tuple[str, ...]
+    provider: str | None
+    security_headers: tuple[str, ...]
+    tls_valid: bool | None
+
+
+@dataclass(frozen=True)
+class PublicSummaryRequest:
+    domain: str
+    stats: Mapping[str, Any]
+    hosts: tuple[PublicHostView, ...]
+
+
 class LlmGateway(Protocol):
     @property
     def model(self) -> str: ...
@@ -103,6 +123,10 @@ class LlmGateway(Protocol):
     ) -> LlmResponse[FalsePositiveProposal]: ...
 
     async def report(self, request: ReportRequest) -> LlmResponse[ReportDraft]: ...
+
+    async def explain_public(
+        self, request: PublicSummaryRequest
+    ) -> LlmResponse[PublicSummaryDraft]: ...
 
 
 class LlmDecisionRepository(Protocol):

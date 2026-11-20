@@ -128,3 +128,13 @@ class InvalidStatusTransitionError(ConflictError):
 class InvalidCursorError(DomainError):
     code = "invalid_cursor"
     default_message = "El cursor de paginación no es válido."
+
+
+class PublicTargetNotAllowedError(DomainError):
+    code = "public_target_not_allowed"
+    default_message = "Este dominio no puede analizarse con el análisis público."
+
+
+class NoticeNotAcceptedError(DomainError):
+    code = "notice_not_accepted"
+    default_message = "Debes aceptar el aviso de uso del análisis público."

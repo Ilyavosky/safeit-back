@@ -10,6 +10,7 @@ from app.domain.entities.llm_proposals import (
     FalsePositiveVerdict,
     PlanProposal,
     ProposedTest,
+    PublicSummaryDraft,
     RecommendationDraft,
     ReportDraft,
 )
@@ -86,4 +87,14 @@ class ReportOut(_Strict):
                 RecommendationDraft(r.finding_id, r.priority, r.action)
                 for r in self.recommendations
             ),
+        )
+
+
+class PublicSummaryOut(_Strict):
+    summary: str = Field(min_length=1, max_length=4000)
+    highlights: list[str] = Field(default_factory=list, max_length=8)
+
+    def to_domain(self) -> PublicSummaryDraft:
+        return PublicSummaryDraft(
+            self.summary, tuple(item[:300] for item in self.highlights if item.strip())
         )
