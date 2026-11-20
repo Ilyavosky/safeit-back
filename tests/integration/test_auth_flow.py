@@ -283,3 +283,16 @@ def test_change_email_and_conflict(client: TestClient) -> None:
     )
     assert changed.status_code == 200
     assert changed.json()["email"] == "nueva@example.com"
+
+
+def test_cors_preflight_allows_put_from_configured_origin(client: TestClient) -> None:
+    response = client.options(
+        "/endpoints/00000000-0000-0000-0000-000000000000/whitelist",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "PUT",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert "PUT" in response.headers["access-control-allow-methods"]

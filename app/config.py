@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     environment: Literal["dev", "prod"] = "dev"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     cors_origins: list[str] = ["http://localhost:3000"]
+    refresh_cookie_path: str = "/auth"
 
     database_url: SecretStr
     db_pool_min_size: int = Field(default=1, ge=1)

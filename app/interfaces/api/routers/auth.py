@@ -19,7 +19,6 @@ from app.interfaces.api.schemas.auth import (
 )
 
 REFRESH_COOKIE = "safeit_refresh"
-REFRESH_COOKIE_PATH = "/auth"
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -38,7 +37,7 @@ def _set_refresh_cookie(response: Response, container: Container, session: Sessi
         httponly=True,
         secure=container.settings.is_prod,
         samesite="strict",
-        path=REFRESH_COOKIE_PATH,
+        path=container.settings.refresh_cookie_path,
     )
 
 
@@ -111,4 +110,4 @@ async def logout(
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
 ) -> None:
     await container.logout.execute(refresh_token)
-    response.delete_cookie(REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
+    response.delete_cookie(REFRESH_COOKIE, path=container.settings.refresh_cookie_path)
