@@ -61,6 +61,21 @@ class DomainAlreadyClaimedError(ConflictError):
     default_message = "Este dominio ya fue verificado por otra cuenta."
 
 
+class InvalidCveIdError(DomainError):
+    code = "invalid_cve_id"
+    default_message = "El identificador de CVE no es válido. Usa el formato CVE-2024-12345."
+
+
+class FeedUnavailableError(DomainError):
+    code = "feed_unavailable"
+    default_message = "No se pudo consultar la fuente de datos de vulnerabilidades."
+
+
+class InvalidDomainNameError(DomainError):
+    code = "invalid_domain_name"
+    default_message = "El nombre de dominio no es válido. Usa el formato ejemplo.com."
+
+
 class DomainNotVerifiedError(DomainError):
     code = "domain_not_verified"
     default_message = "El dominio debe verificarse antes de ejecutar escaneos o pruebas."
@@ -93,3 +108,33 @@ class ToolNotAllowedError(DomainError):
 class LlmOutputRejectedError(DomainError):
     code = "llm_output_rejected"
     default_message = "La salida del modelo no pasó la validación y fue descartada."
+
+
+class WeakPasswordError(DomainError):
+    code = "weak_password"
+    default_message = "La contraseña no cumple los requisitos mínimos."
+
+
+class RateLimitExceededError(DomainError):
+    code = "rate_limited"
+    default_message = "Demasiados intentos. Espera un momento e inténtalo de nuevo."
+
+
+class InvalidStatusTransitionError(ConflictError):
+    code = "invalid_status_transition"
+    default_message = "La transición de estado solicitada no es válida."
+
+
+class InvalidCursorError(DomainError):
+    code = "invalid_cursor"
+    default_message = "El cursor de paginación no es válido."
+
+
+class PublicTargetNotAllowedError(DomainError):
+    code = "public_target_not_allowed"
+    default_message = "Este dominio no puede analizarse con el análisis público."
+
+
+class NoticeNotAcceptedError(DomainError):
+    code = "notice_not_accepted"
+    default_message = "Debes aceptar el aviso de uso del análisis público."

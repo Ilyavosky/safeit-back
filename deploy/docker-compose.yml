@@ -1,0 +1,33 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  scanner:
+    build:
+      context: ..
+      dockerfile: deploy/scanner/Dockerfile
+    depends_on:
+      - redis
+    env_file:
+      - ../.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    read_only: true
+    tmpfs:
+      - /tmp/scanner:size=256m,uid=10001
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 1.5
+    restart: unless-stopped
