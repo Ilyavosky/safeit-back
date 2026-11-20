@@ -8,7 +8,9 @@ from app.config import get_settings
 from app.container import Container, build_container
 from app.infrastructure.logging import configure_logging
 from app.interfaces.api.error_handlers import register_error_handlers
+from app.interfaces.api.middleware.body_limit import BodySizeLimitMiddleware
 from app.interfaces.api.middleware.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
+from app.interfaces.api.middleware.security_headers import SecurityHeadersMiddleware
 from app.interfaces.api.routers import (
     assets,
     audit,
@@ -18,6 +20,7 @@ from app.interfaces.api.routers import (
     domains,
     findings,
     health,
+    public_analyses,
     reports,
     scans,
     users,
@@ -42,6 +45,7 @@ def create_app(container: Container | None = None) -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
         docs_url=None if resolved.settings.is_prod else "/docs",
+        openapi_url=None if resolved.settings.is_prod else "/openapi.json",
         redoc_url=None,
     )
     app.state.container = resolved
@@ -54,6 +58,8 @@ def create_app(container: Container | None = None) -> FastAPI:
         allow_headers=["Authorization", "Content-Type", REQUEST_ID_HEADER],
         expose_headers=[REQUEST_ID_HEADER],
     )
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=resolved.settings.max_request_body_bytes)
+    app.add_middleware(SecurityHeadersMiddleware, hsts=resolved.settings.is_prod)
     app.add_middleware(RequestIdMiddleware)
 
     register_error_handlers(app)
@@ -68,6 +74,7 @@ def create_app(container: Container | None = None) -> FastAPI:
     app.include_router(findings.router)
     app.include_router(reports.router)
     app.include_router(dashboard.router)
+    app.include_router(public_analyses.router)
     return app
 
 

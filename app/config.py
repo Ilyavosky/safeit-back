@@ -2,6 +2,7 @@ import base64
 import binascii
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     cors_origins: list[str] = ["http://localhost:3000"]
     refresh_cookie_path: str = "/auth"
+    max_request_body_bytes: int = Field(default=1_048_576, ge=1024)
 
     database_url: SecretStr
     db_pool_min_size: int = Field(default=1, ge=1)
@@ -37,6 +39,11 @@ class Settings(BaseSettings):
 
     nvd_api_key: SecretStr | None = None
     cve_sync_max_lookups: int = Field(default=200, ge=0)
+    cve_sync_enabled: bool = True
+    public_analysis_daily_limit: int = Field(default=5, ge=1)
+    public_analysis_retention_days: int = Field(default=30, ge=1)
+    public_analysis_rate_limit_attempts: int = Field(default=3, ge=1)
+    cve_sync_hour_utc: int = Field(default=3, ge=0, le=23)
 
     recon_timeout_seconds: int = Field(default=900, ge=30)
     recon_max_assets: int = Field(default=200, ge=1)
@@ -65,6 +72,11 @@ class Settings(BaseSettings):
         if len(raw) != 32:
             raise ValueError("encryption_key must decode to 32 bytes for AES-256-GCM")
         return value
+
+    @property
+    def public_protected_domains(self) -> frozenset[str]:
+        hosts = {urlsplit(origin).hostname for origin in self.cors_origins}
+        return frozenset(h for h in hosts if h and h != "localhost")
 
     @property
     def recon_stale_after_seconds(self) -> int:

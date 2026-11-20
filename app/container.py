@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
+from redis.asyncio import Redis
+
 from app.application.llm_budget import TokenBudget
 from app.application.ports.clock import Clock
 from app.application.ports.cve_catalog import CveRepository, EpssFeed, KevFeed, NvdFeed
@@ -15,6 +17,13 @@ from app.application.ports.llm import (
     PlanSource,
 )
 from app.application.ports.password_hasher import PasswordHasher
+from app.application.ports.public_analysis import (
+    CertTransparencySource,
+    PublicAnalysisQueue,
+    PublicAnalysisRepository,
+    PublicDns,
+    PublicWebFetcher,
+)
 from app.application.ports.rate_limiter import RateLimiter
 from app.application.ports.recon import (
     HostResolver,
@@ -64,6 +73,13 @@ from app.application.use_cases.llm.finalize_scan import FinalizeScan
 from app.application.use_cases.llm.generate_report import GenerateReport
 from app.application.use_cases.llm.plan_source import FixedPlanSource, LlmPlanSource
 from app.application.use_cases.llm.recorder import DecisionRecorder
+from app.application.use_cases.public.queries import (
+    GetPublicAnalysis,
+    ListPublicAnalyses,
+    PurgeExpiredPublicAnalyses,
+)
+from app.application.use_cases.public.run_analysis import RunPublicAnalysis
+from app.application.use_cases.public.start_analysis import StartPublicAnalysis
 from app.application.use_cases.recon.assets import GetAsset, ListAssets, SetEndpointWhitelist
 from app.application.use_cases.recon.run_recon import ReconLimits, RunReconScan
 from app.application.use_cases.recon.start_recon import RescanAsset, StartReconScan
@@ -84,6 +100,7 @@ from app.infrastructure.db.finding_query_repository import PostgresFindingQueryR
 from app.infrastructure.db.finding_repository import PostgresFindingRepository
 from app.infrastructure.db.finding_review_repository import PostgresFindingReviewRepository
 from app.infrastructure.db.llm_decision_repository import PostgresLlmDecisionRepository
+from app.infrastructure.db.public_analysis_repository import PostgresPublicAnalysisRepository
 from app.infrastructure.db.recon_scan_repository import PostgresReconScanRepository
 from app.infrastructure.db.refresh_token_repository import PostgresRefreshTokenRepository
 from app.infrastructure.db.report_repository import PostgresReportRepository
@@ -98,9 +115,13 @@ from app.infrastructure.feeds.kev_client import KevClient
 from app.infrastructure.feeds.nvd_client import NvdClient
 from app.infrastructure.llm.http_gateway import HttpLlmGateway
 from app.infrastructure.net.safe_http import SafeHttpClient
+from app.infrastructure.public.crtsh import CrtShSource
+from app.infrastructure.public.dns_inspector import DnsPublicInspector
+from app.infrastructure.public.web_fetcher import PublicHttpFetcher
 from app.infrastructure.queue.celery_app import create_celery
-from app.infrastructure.queue.celery_queue import CeleryReconQueue
+from app.infrastructure.queue.celery_queue import CeleryPublicAnalysisQueue, CeleryReconQueue
 from app.infrastructure.rate_limit import InMemoryRateLimiter
+from app.infrastructure.rate_limit_redis import RedisRateLimiter
 from app.infrastructure.recon.dns_resolver import SystemHostResolver
 from app.infrastructure.recon.httpx_runner import HttpxRunner
 from app.infrastructure.recon.nmap_runner import NmapRunner
@@ -163,6 +184,11 @@ class Container:
     scheduler: ScanScheduler
     run_recon_scan: RunReconScan
     start_recon_scan: StartReconScan
+    start_public_analysis: StartPublicAnalysis
+    run_public_analysis: RunPublicAnalysis
+    get_public_analysis: GetPublicAnalysis
+    list_public_analyses: ListPublicAnalyses
+    purge_public_analyses: PurgeExpiredPublicAnalyses
     rescan_asset: RescanAsset
     list_assets: ListAssets
     get_asset: GetAsset
@@ -206,6 +232,11 @@ def build_container(
     resolver: HostResolver | None = None,
     port_scanner: PortScanner | None = None,
     prober: HttpProber | None = None,
+    public_analyses: PublicAnalysisRepository | None = None,
+    public_queue: PublicAnalysisQueue | None = None,
+    public_dns: PublicDns | None = None,
+    ct_source: CertTransparencySource | None = None,
+    web_fetcher: PublicWebFetcher | None = None,
 ) -> Container:
     clock = clock or SystemClock()
     database = database or PostgresDatabase(
@@ -228,8 +259,9 @@ def build_container(
     findings = findings or PostgresFindingRepository(_pool_of(database))
     assets = assets or PostgresAssetRepository(_pool_of(database))
     recon_scans = recon_scans or PostgresReconScanRepository(_pool_of(database))
+    public_analyses = public_analyses or PostgresPublicAnalysisRepository(_pool_of(database))
     record_action = RecordAction(audit)
-    shared_limiter = rate_limiter or InMemoryRateLimiter(clock)
+    shared_limiter = rate_limiter or _default_rate_limiter(settings, clock)
 
     hasher = hasher or Argon2PasswordHasher()
     cipher = AesGcmCipher(settings.encryption_key.get_secret_value())
@@ -354,6 +386,32 @@ def build_container(
         clock,
         refresh_ttl=timedelta(days=settings.refresh_token_ttl_days),
     )
+    celery = create_celery(settings)
+    public_queue = public_queue or CeleryPublicAnalysisQueue(celery)
+    run_public_analysis = RunPublicAnalysis(
+        public_analyses,
+        public_dns or DnsPublicInspector(),
+        enumerator,
+        ct_source or CrtShSource(),
+        web_fetcher or PublicHttpFetcher(),
+        llm,
+        clock,
+    )
+    start_public_analysis = StartPublicAnalysis(
+        public_analyses,
+        public_queue,
+        record_action,
+        clock,
+        AuthRateLimiter(
+            shared_limiter,
+            attempts=settings.public_analysis_rate_limit_attempts,
+            window_seconds=settings.auth_rate_limit_window_seconds,
+        ),
+        protected_domains=settings.public_protected_domains,
+        daily_limit=settings.public_analysis_daily_limit,
+        retention_days=settings.public_analysis_retention_days,
+        stale_after_seconds=settings.recon_stale_after_seconds,
+    )
     return Container(
         settings=settings,
         database=database,
@@ -417,6 +475,11 @@ def build_container(
         scheduler=scheduler,
         run_recon_scan=run_recon_scan,
         start_recon_scan=start_recon_scan,
+        start_public_analysis=start_public_analysis,
+        run_public_analysis=run_public_analysis,
+        get_public_analysis=GetPublicAnalysis(public_analyses, clock),
+        list_public_analyses=ListPublicAnalyses(public_analyses),
+        purge_public_analyses=PurgeExpiredPublicAnalyses(public_analyses, clock),
         rescan_asset=RescanAsset(domains, assets, start_recon_scan),
         list_assets=ListAssets(domains, assets),
         get_asset=GetAsset(domains, assets),
@@ -428,3 +491,9 @@ def _pool_of(database: DatabasePort) -> Any:
     if not isinstance(database, PostgresDatabase):
         raise TypeError("Se necesita PostgresDatabase o repositorios explícitos.")
     return database.pool
+
+
+def _default_rate_limiter(settings: Settings, clock: Clock) -> RateLimiter:
+    if settings.is_prod:
+        return RedisRateLimiter(Redis.from_url(settings.redis_url))
+    return InMemoryRateLimiter(clock)

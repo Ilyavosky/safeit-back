@@ -115,7 +115,7 @@ El catálogo se llena con los CVE de CISA KEV (NVD con `hasKev`), los consultado
 uv run python -m scripts.sync_cve_catalog
 ```
 
-La sincronización es idempotente (no toca filas sin datos nuevos) y, si un feed falla, deja un aviso en el log y conserva el catálogo existente. La sincronización periódica con Celery beat no está programada todavía; por ahora se corre el script a mano o con cron.
+La sincronización es idempotente (no toca filas sin datos nuevos) y, si un feed falla, deja un aviso en el log y conserva el catálogo existente. La sincronización diaria corre como la tarea `safeit.cve.sync` (03:15 UTC, configurable con `CVE_SYNC_HOUR_UTC`, se apaga con `CVE_SYNC_ENABLED=false`). El calendario lo dispara Celery beat, que se activa arrancando el worker con `-B` y exactamente una réplica: `celery -A app.infrastructure.queue.tasks:celery_app worker -B --concurrency=2`. Con `NVD_API_KEY` la sincronización es mucho más rápida. El script `scripts/sync_cve_catalog.py` sigue sirviendo para correrla a mano.
 
 Fórmula: `priority_score = min(100, CVSS × 10 + EPSS × 20)`, con piso de 90 si está en KEV y vacío si no hay ningún dato.
 

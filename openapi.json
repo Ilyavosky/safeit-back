@@ -734,6 +734,20 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HostKind": {
+        "enum": [
+          "web_app",
+          "api",
+          "mail",
+          "login_panel",
+          "docs",
+          "blog",
+          "redirect",
+          "no_service"
+        ],
+        "title": "HostKind",
+        "type": "string"
+      },
       "JobStatus": {
         "enum": [
           "queued",
@@ -873,6 +887,332 @@
           "current_password"
         ],
         "title": "ProfileUpdateRequest",
+        "type": "object"
+      },
+      "PublicAnalysisCreate": {
+        "properties": {
+          "accept_notice": {
+            "title": "Accept Notice",
+            "type": "boolean"
+          },
+          "domain": {
+            "maxLength": 253,
+            "minLength": 3,
+            "title": "Domain",
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain",
+          "accept_notice"
+        ],
+        "title": "PublicAnalysisCreate",
+        "type": "object"
+      },
+      "PublicAnalysisDetailResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "hosts": {
+            "items": {
+              "$ref": "#/components/schemas/PublicHostResponse"
+            },
+            "title": "Hosts",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "stats": {
+            "additionalProperties": true,
+            "title": "Stats",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "summary_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Model"
+          }
+        },
+        "required": [
+          "id",
+          "domain",
+          "status",
+          "summary",
+          "summary_model",
+          "stats",
+          "error",
+          "created_at",
+          "finished_at",
+          "expires_at",
+          "hosts"
+        ],
+        "title": "PublicAnalysisDetailResponse",
+        "type": "object"
+      },
+      "PublicAnalysisResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "stats": {
+            "additionalProperties": true,
+            "title": "Stats",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "summary_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Model"
+          }
+        },
+        "required": [
+          "id",
+          "domain",
+          "status",
+          "summary",
+          "summary_model",
+          "stats",
+          "error",
+          "created_at",
+          "finished_at",
+          "expires_at"
+        ],
+        "title": "PublicAnalysisResponse",
+        "type": "object"
+      },
+      "PublicHostResponse": {
+        "properties": {
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/HostKind"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "redirect_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Host"
+          },
+          "security_headers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Security Headers",
+            "type": "array"
+          },
+          "technologies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Technologies",
+            "type": "array"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "tls_issuer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tls Issuer"
+          },
+          "tls_valid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tls Valid"
+          },
+          "tls_valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tls Valid Until"
+          }
+        },
+        "required": [
+          "host",
+          "kind",
+          "http_status",
+          "title",
+          "technologies",
+          "provider",
+          "redirect_host",
+          "security_headers",
+          "tls_issuer",
+          "tls_valid",
+          "tls_valid_until"
+        ],
+        "title": "PublicHostResponse",
         "type": "object"
       },
       "RecommendationResponse": {
@@ -2705,6 +3045,128 @@
         "summary": "Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/public-analyses": {
+      "get": {
+        "operationId": "list_public_analyses_public_analyses_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublicAnalysisResponse"
+                  },
+                  "title": "Response List Public Analyses Public Analyses Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Public Analyses",
+        "tags": [
+          "public-analyses"
+        ]
+      },
+      "post": {
+        "operationId": "start_public_analysis_public_analyses_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicAnalysisCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAnalysisResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Start Public Analysis",
+        "tags": [
+          "public-analyses"
+        ]
+      }
+    },
+    "/public-analyses/{analysis_id}": {
+      "get": {
+        "operationId": "read_public_analysis_public_analyses__analysis_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "analysis_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Analysis Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAnalysisDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Public Analysis",
+        "tags": [
+          "public-analyses"
         ]
       }
     },

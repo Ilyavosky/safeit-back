@@ -61,3 +61,15 @@ async def test_worker_task_runs_the_recon_use_case() -> None:
     await tasks.run_recon_job(Container(), scan_id, "x.example.com")  # type: ignore[arg-type]
     assert calls == [(scan_id, "x.example.com")]
     assert tasks.celery_app.tasks[RECON_TASK_NAME].name == RECON_TASK_NAME
+
+
+def test_cve_sync_is_scheduled_daily_when_enabled(settings: Settings) -> None:
+    schedule = create_celery(settings).conf.beat_schedule
+
+    assert schedule["cve-sync-daily"]["task"] == "safeit.cve.sync"
+
+
+def test_cve_sync_schedule_can_be_disabled() -> None:
+    conf = create_celery(Settings(cve_sync_enabled=False)).conf
+
+    assert set(conf.beat_schedule) == {"public-analysis-purge-daily"}

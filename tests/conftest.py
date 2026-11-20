@@ -37,6 +37,13 @@ from tests.fakes_llm import (
     InMemoryLlmDecisionRepository,
     InMemoryReportRepository,
 )
+from tests.fakes_public import (
+    FakeCtSource,
+    FakePublicDns,
+    FakePublicQueue,
+    FakeWebFetcher,
+    InMemoryPublicAnalysisRepository,
+)
 from tests.fakes_recon import (
     FakeEnumerator,
     FakeProber,
@@ -210,6 +217,31 @@ def runners() -> dict[str, FakeRunner]:
 
 
 @pytest.fixture
+def public_repo() -> InMemoryPublicAnalysisRepository:
+    return InMemoryPublicAnalysisRepository()
+
+
+@pytest.fixture
+def public_queue() -> FakePublicQueue:
+    return FakePublicQueue()
+
+
+@pytest.fixture
+def public_dns() -> FakePublicDns:
+    return FakePublicDns()
+
+
+@pytest.fixture
+def ct_source() -> FakeCtSource:
+    return FakeCtSource()
+
+
+@pytest.fixture
+def web_fetcher() -> FakeWebFetcher:
+    return FakeWebFetcher()
+
+
+@pytest.fixture
 def make_client(
     settings: Settings,
     clock: FakeClock,
@@ -237,6 +269,11 @@ def make_client(
     resolver: FakeResolver,
     port_scanner: FakeScanner,
     prober: FakeProber,
+    public_repo: InMemoryPublicAnalysisRepository,
+    public_queue: FakePublicQueue,
+    public_dns: FakePublicDns,
+    ct_source: FakeCtSource,
+    web_fetcher: FakeWebFetcher,
 ) -> Callable[..., TestClient]:
     def factory(
         database: FakeDatabase | None = None,
@@ -278,6 +315,11 @@ def make_client(
             resolver=resolver,
             port_scanner=port_scanner,
             prober=prober,
+            public_analyses=public_repo,
+            public_queue=public_queue,
+            public_dns=public_dns,
+            ct_source=ct_source,
+            web_fetcher=web_fetcher,
         )
         return TestClient(create_app(container), raise_server_exceptions=False)
 
