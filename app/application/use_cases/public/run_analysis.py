@@ -38,6 +38,8 @@ from app.domain.value_objects.job_status import JobStatus
 
 log = structlog.get_logger(__name__)
 
+LLM_HOST_LIMIT = 25
+
 FAILED_MESSAGE = "El análisis no pudo completarse."
 CONCURRENCY = 5
 TLS_EXPIRY_WARNING = timedelta(days=30)
@@ -149,6 +151,7 @@ class RunPublicAnalysis:
     ) -> tuple[str | None, str | None]:
         if self._gateway is None:
             return None, None
+        relevant = sorted(hosts, key=lambda h: h.http_status is None)[:LLM_HOST_LIMIT]
         request = PublicSummaryRequest(
             domain=domain,
             stats=stats,
@@ -163,14 +166,16 @@ class RunPublicAnalysis:
                     security_headers=h.security_headers,
                     tls_valid=h.tls_valid,
                 )
-                for h in hosts
+                for h in relevant
             ),
         )
         try:
             response = await self._gateway.explain_public(request)
-        except LlmUnavailableError:
+        except LlmUnavailableError as exc:
+            log.warning("public_summary_unavailable", domain=domain, reason=str(exc))
             return None, None
         if response.data is None:
+            log.warning("public_summary_invalid", domain=domain, error=response.error)
             return None, None
         text = response.data.summary
         if response.data.highlights:
