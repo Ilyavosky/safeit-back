@@ -209,4 +209,4 @@ async def test_public_summary_is_parsed_and_wraps_page_titles_as_untrusted() -> 
     assert response.data.highlights == ("Tiene API.",)
     payload = json.loads(seen[0].content)
     assert "<datos_no_confiables" in payload["messages"][0]["content"]
-    assert "public-summary-v1" in payload["system"]
+    assert "public-summary-v2" in payload["system"]
