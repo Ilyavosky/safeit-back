@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     refresh_cookie_path: str = "/auth"
     max_request_body_bytes: int = Field(default=1_048_576, ge=1024)
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
 
     database_url: SecretStr
     db_pool_min_size: int = Field(default=1, ge=1)

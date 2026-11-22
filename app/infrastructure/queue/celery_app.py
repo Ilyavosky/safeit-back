@@ -7,7 +7,7 @@ RECON_TASK_NAME = "safeit.recon.run"
 CVE_SYNC_TASK_NAME = "safeit.cve.sync"
 PUBLIC_ANALYSIS_TASK_NAME = "safeit.public.run"
 PUBLIC_PURGE_TASK_NAME = "safeit.public.purge"
-BEAT_SCHEDULE_FILE = "/tmp/celerybeat-schedule"  # noqa: S108
+BEAT_SCHEDULE_FILE = "/tmp/celerybeat-schedule"  # noqa: S108  # nosec B108
 
 
 def create_celery(settings: Settings) -> Celery:
