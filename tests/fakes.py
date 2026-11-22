@@ -5,11 +5,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+from app.application.ports.mailer import EmailMessage
 from app.domain.entities.audit_entry import AuditEntry
 from app.domain.entities.domain import Domain
+from app.domain.entities.password_reset_token import PasswordResetToken
 from app.domain.entities.refresh_token import RefreshToken
 from app.domain.entities.user import User
-from app.domain.errors import ConflictError, DomainAlreadyClaimedError
+from app.domain.errors import ConflictError, DomainAlreadyClaimedError, MailDeliveryError
 from app.domain.value_objects.role import Role
 from app.domain.value_objects.verification_method import VerificationMethod
 
@@ -105,6 +107,40 @@ class InMemoryRefreshTokenRepository:
 
     def active_count(self) -> int:
         return sum(1 for t in self.tokens.values() if t.revoked_at is None)
+
+
+class InMemoryPasswordResetTokenRepository:
+    def __init__(self) -> None:
+        self.tokens: dict[UUID, PasswordResetToken] = {}
+
+    async def add(self, token: PasswordResetToken) -> None:
+        self.tokens[token.id] = token
+
+    async def get_by_hash(self, token_hash: str) -> PasswordResetToken | None:
+        return next((t for t in self.tokens.values() if t.token_hash == token_hash), None)
+
+    async def consume(self, token_id: UUID, now: datetime) -> bool:
+        token = self.tokens.get(token_id)
+        if token is None or token.used_at is not None or token.expires_at <= now:
+            return False
+        self.tokens[token_id] = replace(token, used_at=now)
+        return True
+
+    async def invalidate_for_user(self, user_id: UUID, now: datetime) -> None:
+        for token_id, token in list(self.tokens.items()):
+            if token.user_id == user_id and token.used_at is None:
+                self.tokens[token_id] = replace(token, used_at=now)
+
+
+class FakeMailer:
+    def __init__(self) -> None:
+        self.sent: list[EmailMessage] = []
+        self.fail = False
+
+    async def send(self, message: EmailMessage) -> None:
+        if self.fail:
+            raise MailDeliveryError
+        self.sent.append(message)
 
 
 class InMemoryAuditRepository:

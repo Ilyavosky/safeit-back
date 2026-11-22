@@ -5,6 +5,7 @@ from uuid import UUID
 
 from app.domain.entities.audit_entry import AuditEntry
 from app.domain.entities.domain import Domain
+from app.domain.entities.password_reset_token import PasswordResetToken
 from app.domain.entities.refresh_token import RefreshToken
 from app.domain.entities.user import User
 
@@ -29,6 +30,16 @@ class RefreshTokenRepository(Protocol):
     async def revoke_family(self, family_id: UUID, now: datetime) -> None: ...
 
     async def revoke_all_for_user(self, user_id: UUID, now: datetime) -> None: ...
+
+
+class PasswordResetTokenRepository(Protocol):
+    async def add(self, token: PasswordResetToken) -> None: ...
+
+    async def get_by_hash(self, token_hash: str) -> PasswordResetToken | None: ...
+
+    async def consume(self, token_id: UUID, now: datetime) -> bool: ...
+
+    async def invalidate_for_user(self, user_id: UUID, now: datetime) -> None: ...
 
 
 class DomainRepository(Protocol):

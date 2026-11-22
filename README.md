@@ -47,8 +47,12 @@ Los mismos pasos corren en GitHub Actions (`.github/workflows/ci.yml`).
 | POST | `/auth/refresh` | Rota el refresh token; reutilizar uno ya rotado revoca toda la familia |
 | POST | `/auth/logout` | Revoca la sesión y borra la cookie |
 | GET / PATCH | `/users/me` | Perfil; para cambiar correo o contraseña se exige la contraseña actual |
+| POST | `/auth/password/forgot` | Pide el enlace de recuperación; responde siempre `202` igual exista o no el correo |
+| POST | `/auth/password/reset` | Cambia la contraseña con el token del enlace (un solo uso) y cierra todas las sesiones |
 
 El access token (15 min) va en `Authorization: Bearer`. El refresh token viaja solo en cookie `httpOnly` con `SameSite=Strict` y ruta `/auth`, y en la base se guarda su hash. Los roles se leen de la base en cada petición, así que un cambio de rol aplica de inmediato.
+
+Recuperación de contraseña: el enlace (`FRONTEND_URL/reset-password?token=...`) se envía con Resend, vence a los `PASSWORD_RESET_TTL_MINUTES` (30 por defecto), solo sirve una vez y en la base se guarda únicamente su hash. Una solicitud nueva invalida las anteriores y el envío ocurre en segundo plano para no revelar si el correo existe. Variables: `RESEND_API_KEY`, `MAIL_FROM` (debe pertenecer a un dominio verificado en Resend), `FRONTEND_URL`. Sin `RESEND_API_KEY` no se envía nada y queda un aviso en el log. Requiere la migración `10_safeit_password_reset.sql` del repo de base de datos.
 
 Primer administrador:
 

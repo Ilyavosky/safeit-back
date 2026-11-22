@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     auth_rate_limit_window_seconds: int = Field(default=60, ge=1)
     domain_verify_rate_limit_attempts: int = Field(default=10, ge=1)
 
+    password_reset_ttl_minutes: int = Field(default=30, ge=5, le=1440)
+    frontend_url: str = "http://localhost:3000"
+    resend_api_key: SecretStr | None = None
+    mail_from: str = "SafeIT <no-reply@ilyacori.com>"
+
     encryption_key: SecretStr
 
     nvd_api_key: SecretStr | None = None

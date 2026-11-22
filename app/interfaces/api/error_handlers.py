@@ -18,6 +18,8 @@ _STATUS_BY_ERROR: tuple[tuple[type[errors.DomainError], int], ...] = (
     (errors.MfaRequiredError, 401),
     (errors.InvalidMfaCodeError, 401),
     (errors.InvalidTokenError, 401),
+    (errors.InvalidResetTokenError, 400),
+    (errors.MailDeliveryError, 503),
     (errors.TokenReuseDetectedError, 401),
     (errors.PermissionDeniedError, 403),
     (errors.InvalidCveIdError, 422),

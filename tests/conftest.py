@@ -24,8 +24,10 @@ from tests.fakes import (
     FakeClock,
     FakeDatabase,
     FakeDomainVerifier,
+    FakeMailer,
     InMemoryAuditRepository,
     InMemoryDomainRepository,
+    InMemoryPasswordResetTokenRepository,
     InMemoryRefreshTokenRepository,
     InMemoryUserRepository,
 )
@@ -83,6 +85,16 @@ def users_repo() -> InMemoryUserRepository:
 @pytest.fixture
 def refresh_repo() -> InMemoryRefreshTokenRepository:
     return InMemoryRefreshTokenRepository()
+
+
+@pytest.fixture
+def reset_repo() -> InMemoryPasswordResetTokenRepository:
+    return InMemoryPasswordResetTokenRepository()
+
+
+@pytest.fixture
+def mailer() -> FakeMailer:
+    return FakeMailer()
 
 
 @pytest.fixture
@@ -247,6 +259,8 @@ def make_client(
     clock: FakeClock,
     users_repo: InMemoryUserRepository,
     refresh_repo: InMemoryRefreshTokenRepository,
+    reset_repo: InMemoryPasswordResetTokenRepository,
+    mailer: FakeMailer,
     domains_repo: InMemoryDomainRepository,
     audit_repo: InMemoryAuditRepository,
     domain_verifier: FakeDomainVerifier,
@@ -285,6 +299,8 @@ def make_client(
             database=database or FakeDatabase(),
             users=users_repo,
             refresh_tokens=refresh_repo,
+            password_resets=reset_repo,
+            mailer=mailer,
             domains=domains_repo,
             audit=audit_repo,
             domain_verifier=domain_verifier,

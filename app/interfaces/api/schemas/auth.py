@@ -20,6 +20,19 @@ class LoginRequest(BaseModel):
     password: Password
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    new_password: Password
+
+
 class UserResponse(BaseModel):
     id: UUID
     email: str
