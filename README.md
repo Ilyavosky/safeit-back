@@ -54,6 +54,8 @@ El access token (15 min) va en `Authorization: Bearer`. El refresh token viaja s
 
 Recuperación de contraseña: el enlace (`FRONTEND_URL/reset-password?token=...`) se envía con Resend, vence a los `PASSWORD_RESET_TTL_MINUTES` (30 por defecto), solo sirve una vez y en la base se guarda únicamente su hash. Una solicitud nueva invalida las anteriores y el envío ocurre en segundo plano para no revelar si el correo existe. Variables: `RESEND_API_KEY`, `MAIL_FROM` (debe pertenecer a un dominio verificado en Resend), `FRONTEND_URL`. Sin `RESEND_API_KEY` no se envía nada y queda un aviso en el log. Requiere la migración `10_safeit_password_reset.sql` del repo de base de datos.
 
+IP del cliente: uvicorn arranca con `--no-proxy-headers` y la IP se toma de `X-Forwarded-For` solo si `TRUSTED_PROXY_HOPS` es mayor que 0, usando la entrada que agregó el proxy más cercano (la n-ésima desde la derecha). Con valor 0, que es el de desarrollo, se usa la IP directa de la conexión. En Railway va `TRUSTED_PROXY_HOPS=1`.
+
 Primer administrador:
 
 ```

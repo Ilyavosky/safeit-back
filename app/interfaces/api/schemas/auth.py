@@ -54,7 +54,7 @@ class MfaChallengeResponse(BaseModel):
 
 
 class MfaVerifyRequest(BaseModel):
-    mfa_token: str = Field(min_length=1)
+    mfa_token: str = Field(min_length=1, max_length=2048)
     code: MfaCode
 
 

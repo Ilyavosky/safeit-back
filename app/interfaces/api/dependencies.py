@@ -1,3 +1,4 @@
+import ipaddress
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
@@ -18,7 +19,21 @@ def get_container(request: Request) -> Container:
 
 
 def get_client_ip(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
+    peer = request.client.host if request.client else "unknown"
+    hops = get_container(request).settings.trusted_proxy_hops
+    if hops == 0:
+        return peer
+    forwarded = [
+        part.strip()
+        for part in request.headers.get("x-forwarded-for", "").split(",")
+        if part.strip()
+    ]
+    if len(forwarded) < hops:
+        return peer
+    try:
+        return str(ipaddress.ip_address(forwarded[-hops]))
+    except ValueError:
+        return peer
 
 
 async def get_current_user(
