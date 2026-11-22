@@ -1,24 +1,32 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, Request, Response, status
+import structlog
+from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Request, Response, status
 
+from app.application.ports.mailer import EmailMessage, Mailer
 from app.application.use_cases.auth.login import MfaChallenge
 from app.application.use_cases.auth.session import SessionTokens
 from app.container import Container
-from app.domain.errors import InvalidTokenError
+from app.domain.errors import DomainError, InvalidTokenError
 from app.interfaces.api.dependencies import ClientIp, CurrentUser, get_container
 from app.interfaces.api.schemas.auth import (
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
     MfaChallengeResponse,
     MfaEnableRequest,
     MfaSetupResponse,
     MfaVerifyRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UserResponse,
 )
 
 REFRESH_COOKIE = "safeit_refresh"
+FORGOT_MESSAGE = "Si el correo existe, te enviamos un enlace para restablecer la contraseña."
+
+log = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -63,6 +71,41 @@ async def login(
         return MfaChallengeResponse(mfa_token=result.mfa_token)
     _set_refresh_cookie(response, container, result)
     return _token_response(result)
+
+
+async def _deliver(mailer: Mailer, message: EmailMessage) -> None:
+    try:
+        await mailer.send(message)
+    except DomainError as exc:
+        log.warning("password_reset_mail_failed", code=exc.code)
+
+
+@router.post(
+    "/password/forgot",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ForgotPasswordResponse,
+)
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    background: BackgroundTasks,
+    container: ContainerDep,
+    ip: ClientIp,
+) -> ForgotPasswordResponse:
+    message = await container.request_password_reset.execute(body.email, ip)
+    if message is not None:
+        background.add_task(_deliver, container.mailer, message)
+    return ForgotPasswordResponse(message=FORGOT_MESSAGE)
+
+
+@router.post("/password/reset", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(
+    body: ResetPasswordRequest,
+    response: Response,
+    container: ContainerDep,
+    ip: ClientIp,
+) -> None:
+    await container.confirm_password_reset.execute(body.token, body.new_password, ip)
+    response.delete_cookie(REFRESH_COOKIE, path=container.settings.refresh_cookie_path)
 
 
 @router.post("/mfa/verify", response_model=TokenResponse)

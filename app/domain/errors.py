@@ -51,6 +51,16 @@ class TokenReuseDetectedError(DomainError):
         super().__init__()
 
 
+class InvalidResetTokenError(DomainError):
+    code = "invalid_reset_token"
+    default_message = "El enlace para restablecer la contraseña no es válido o ya venció."
+
+
+class MailDeliveryError(DomainError):
+    code = "mail_delivery_failed"
+    default_message = "No se pudo enviar el correo."
+
+
 class PermissionDeniedError(DomainError):
     code = "permission_denied"
     default_message = "No tienes permiso para realizar esta acción."

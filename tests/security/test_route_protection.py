@@ -11,6 +11,8 @@ PUBLIC = {
     ("POST", "/auth/mfa/verify"),
     ("POST", "/auth/refresh"),
     ("POST", "/auth/logout"),
+    ("POST", "/auth/password/forgot"),
+    ("POST", "/auth/password/reset"),
 }
 
 

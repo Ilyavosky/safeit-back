@@ -16,6 +16,7 @@ from app.application.ports.llm import (
     LlmGateway,
     PlanSource,
 )
+from app.application.ports.mailer import Mailer
 from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.public_analysis import (
     CertTransparencySource,
@@ -37,6 +38,7 @@ from app.application.ports.reports import ReportRenderer, ReportRepository
 from app.application.ports.repositories import (
     AuditRepository,
     DomainRepository,
+    PasswordResetTokenRepository,
     RefreshTokenRepository,
     UserRepository,
 )
@@ -56,6 +58,10 @@ from app.application.use_cases.auth.authenticate import AuthenticateAccessToken
 from app.application.use_cases.auth.login import Login
 from app.application.use_cases.auth.logout import Logout
 from app.application.use_cases.auth.mfa import EnableMfa, SetupMfa, VerifyMfa
+from app.application.use_cases.auth.password_reset import (
+    ConfirmPasswordReset,
+    RequestPasswordReset,
+)
 from app.application.use_cases.auth.register_user import RegisterUser
 from app.application.use_cases.auth.rotate_refresh_token import RotateRefreshToken
 from app.application.use_cases.auth.session import AuthRateLimiter, SessionIssuer
@@ -100,6 +106,9 @@ from app.infrastructure.db.finding_query_repository import PostgresFindingQueryR
 from app.infrastructure.db.finding_repository import PostgresFindingRepository
 from app.infrastructure.db.finding_review_repository import PostgresFindingReviewRepository
 from app.infrastructure.db.llm_decision_repository import PostgresLlmDecisionRepository
+from app.infrastructure.db.password_reset_token_repository import (
+    PostgresPasswordResetTokenRepository,
+)
 from app.infrastructure.db.public_analysis_repository import PostgresPublicAnalysisRepository
 from app.infrastructure.db.recon_scan_repository import PostgresReconScanRepository
 from app.infrastructure.db.refresh_token_repository import PostgresRefreshTokenRepository
@@ -114,6 +123,7 @@ from app.infrastructure.feeds.http import RetryingJsonClient
 from app.infrastructure.feeds.kev_client import KevClient
 from app.infrastructure.feeds.nvd_client import NvdClient
 from app.infrastructure.llm.http_gateway import HttpLlmGateway
+from app.infrastructure.mail.resend_mailer import NullMailer, ResendMailer
 from app.infrastructure.net.safe_http import SafeHttpClient
 from app.infrastructure.public.crtsh import CrtShSource
 from app.infrastructure.public.dns_inspector import DnsPublicInspector
@@ -158,6 +168,9 @@ class Container:
     rotate_refresh_token: RotateRefreshToken
     logout: Logout
     update_profile: UpdateProfile
+    request_password_reset: RequestPasswordReset
+    confirm_password_reset: ConfirmPasswordReset
+    mailer: Mailer
     record_action: RecordAction
     list_audit: ListAudit
     verify_audit_chain: VerifyAuditChain
@@ -201,6 +214,8 @@ def build_container(
     database: DatabasePort | None = None,
     users: UserRepository | None = None,
     refresh_tokens: RefreshTokenRepository | None = None,
+    password_resets: PasswordResetTokenRepository | None = None,
+    mailer: Mailer | None = None,
     domains: DomainRepository | None = None,
     audit: AuditRepository | None = None,
     domain_verifier: DomainVerifier | None = None,
@@ -246,6 +261,7 @@ def build_container(
     )
     users = users or PostgresUserRepository(_pool_of(database))
     refresh_tokens = refresh_tokens or PostgresRefreshTokenRepository(_pool_of(database))
+    password_resets = password_resets or PostgresPasswordResetTokenRepository(_pool_of(database))
     domains = domains or PostgresDomainRepository(_pool_of(database))
     audit = audit or PostgresAuditRepository(_pool_of(database))
     domain_verifier = domain_verifier or CompositeDomainVerifier(
@@ -299,6 +315,12 @@ def build_container(
             base_url=settings.llm_base_url,
             provider=settings.llm_provider,
             timeout_s=settings.llm_request_timeout_seconds,
+        )
+    if mailer is None:
+        mailer = (
+            ResendMailer(settings.resend_api_key.get_secret_value(), settings.mail_from)
+            if settings.resend_api_key
+            else NullMailer()
         )
     budget = TokenBudget(settings.llm_max_tokens_per_scan)
     recorder = DecisionRecorder(llm_decisions, budget, clock)
@@ -428,6 +450,20 @@ def build_container(
         ),
         logout=Logout(refresh_tokens, tokens, clock, record_action),
         update_profile=UpdateProfile(users, refresh_tokens, hasher, clock, limiter, record_action),
+        request_password_reset=RequestPasswordReset(
+            users,
+            password_resets,
+            tokens,
+            clock,
+            limiter,
+            record_action,
+            frontend_url=settings.frontend_url,
+            ttl=timedelta(minutes=settings.password_reset_ttl_minutes),
+        ),
+        confirm_password_reset=ConfirmPasswordReset(
+            users, password_resets, refresh_tokens, tokens, hasher, clock, limiter, record_action
+        ),
+        mailer=mailer,
         record_action=record_action,
         list_audit=ListAudit(audit),
         verify_audit_chain=VerifyAuditChain(audit),
