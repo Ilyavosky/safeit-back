@@ -301,3 +301,29 @@ def test_latest_report_points_to_the_newest_report_of_the_user(
     admin = _session(client, users_repo, "root@example.com", Role.ADMIN)
     assert client.get("/reports/latest", headers=admin).json() == {"scan_id": str(scan_id)}
     assert client.get("/reports/latest", headers={}).status_code == 401
+
+
+def test_report_listing_is_scoped_to_the_owner(
+    client: TestClient,
+    users_repo: InMemoryUserRepository,
+    domain_verifier: FakeDomainVerifier,
+    endpoints_repo: InMemoryEndpointRepository,
+    scheduler: ImmediateScheduler,
+    runners: dict[str, FakeRunner],
+) -> None:
+    headers, domain_id, scan_id = _scan_with_findings(
+        client, users_repo, domain_verifier, endpoints_repo, scheduler, runners
+    )
+    listing = client.get("/reports", headers=headers)
+    assert listing.status_code == 200
+    [item] = listing.json()
+    assert item["scan_id"] == str(scan_id)
+    assert item["domain_id"] == str(domain_id)
+    assert item["domain"] == "example.com"
+    assert item["total_findings"] == 3
+    assert item["severity_counts"] == {"critical": 0, "high": 1, "medium": 1, "low": 1, "info": 0}
+    stranger = _session(client, users_repo, "luis@example.com", Role.ANALYST)
+    assert client.get("/reports", headers=stranger).json() == []
+    admin = _session(client, users_repo, "root@example.com", Role.ADMIN)
+    assert len(client.get("/reports", headers=admin).json()) == 1
+    assert client.get("/reports", headers={}).status_code == 401

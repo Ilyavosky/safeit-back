@@ -3,14 +3,39 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from app.application.ports.findings_query import ReportSummary
 from app.application.ports.reports import RecommendationLine, ReportDocument
 from app.application.use_cases.reports.dashboard import DashboardSummary
 from app.domain.entities.report import Recommendation
+from app.domain.services.report_builder import severity_counts
 from app.domain.value_objects.job_status import JobStatus
 from app.domain.value_objects.recommendation_status import RecommendationStatus
 from app.domain.value_objects.remediation_status import RemediationStatus
 from app.domain.value_objects.severity import Severity
 from app.interfaces.api.schemas.findings import FindingDetailResponse
+
+
+class ReportSummaryResponse(BaseModel):
+    scan_id: UUID
+    domain_id: UUID
+    domain: str
+    created_at: datetime
+    generated_with_llm: bool
+    total_findings: int
+    severity_counts: dict[Severity, int]
+
+    @classmethod
+    def from_summary(cls, summary: ReportSummary) -> "ReportSummaryResponse":
+        counts = {**severity_counts([]), **summary.counts}
+        return cls(
+            scan_id=summary.scan_id,
+            domain_id=summary.domain_id,
+            domain=summary.domain_name,
+            created_at=summary.created_at,
+            generated_with_llm=summary.generated_with_llm,
+            total_findings=sum(counts.values()),
+            severity_counts=counts,
+        )
 
 
 class LatestReportResponse(BaseModel):

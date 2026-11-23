@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
@@ -54,6 +55,16 @@ class FindingPage:
 
 
 @dataclass(frozen=True)
+class ReportSummary:
+    scan_id: UUID
+    domain_id: UUID
+    domain_name: str
+    created_at: datetime
+    generated_with_llm: bool
+    counts: dict[Severity, int]
+
+
+@dataclass(frozen=True)
 class Scope:
     owner_id: UUID | None = None
     domain_id: UUID | None = None
@@ -87,3 +98,5 @@ class FindingQueryRepository(Protocol):
     async def scan_status_counts(self, scope: Scope) -> dict[JobStatus, int]: ...
 
     async def latest_report_scan_id(self, owner_id: UUID | None) -> UUID | None: ...
+
+    async def list_reports(self, owner_id: UUID | None, limit: int) -> list[ReportSummary]: ...

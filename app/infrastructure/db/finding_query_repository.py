@@ -9,6 +9,7 @@ from app.application.ports.findings_query import (
     FindingPage,
     FindingSort,
     FindingView,
+    ReportSummary,
     Scope,
 )
 from app.domain.entities.finding import Finding
@@ -248,6 +249,36 @@ class PostgresFindingQueryRepository:
             params,
         )
         return rows[0][0] if rows else None
+
+    async def list_reports(self, owner_id: UUID | None, limit: int) -> list[ReportSummary]:
+        clauses = ["true"]
+        params: list[Any] = []
+        if owner_id is not None:
+            clauses.append("d.user_id = %s")
+            params.append(owner_id)
+        rows = await self._fetch(
+            "select rp.scan_id, d.id, d.name, rp.created_at, (rp.decision_id is not null) "
+            "from public.reports rp "
+            "join public.scans s on s.id = rp.scan_id "
+            "join public.domains d on d.id = s.domain_id "
+            f"where {' and '.join(clauses)} order by rp.created_at desc, rp.id desc limit %s",
+            [*params, limit],
+        )
+        if not rows:
+            return []
+        counted = await self._fetch(
+            "select r.scan_id, f.severity, count(*) from public.findings f "
+            "join public.test_runs r on r.id = f.test_run_id "
+            "where r.scan_id = any(%s) and not f.is_false_positive group by r.scan_id, f.severity",
+            [[row[0] for row in rows]],
+        )
+        counts: dict[UUID, dict[Severity, int]] = {}
+        for scan_id, severity, total in counted:
+            counts.setdefault(scan_id, {})[Severity(severity)] = int(total)
+        return [
+            ReportSummary(row[0], row[1], row[2], row[3], row[4], counts.get(row[0], {}))
+            for row in rows
+        ]
 
     async def _fetch(self, sql: str, params: list[Any]) -> list[Any]:
         async with self._pool.connection() as conn:

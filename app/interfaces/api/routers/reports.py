@@ -12,12 +12,19 @@ from app.interfaces.api.schemas.reports import (
     RecommendationResponse,
     RecommendationStatusRequest,
     ReportResponse,
+    ReportSummaryResponse,
 )
 
 router = APIRouter(tags=["reports"])
 
 ContainerDep = Annotated[Container, Depends(get_container)]
 Operator = Annotated[User, Depends(require_role(Role.ADMIN, Role.ANALYST))]
+
+
+@router.get("/reports", response_model=list[ReportSummaryResponse])
+async def list_reports(user: CurrentUser, container: ContainerDep) -> list[ReportSummaryResponse]:
+    summaries = await container.list_reports.execute(user)
+    return [ReportSummaryResponse.from_summary(s) for s in summaries]
 
 
 @router.get("/reports/latest", response_model=LatestReportResponse)

@@ -7,6 +7,7 @@ from app.application.ports.findings_query import (
     FindingPage,
     FindingSort,
     FindingView,
+    ReportSummary,
     Scope,
 )
 from app.domain.value_objects.job_status import JobStatus
@@ -100,6 +101,31 @@ class InMemoryFindingQueryRepository:
             if owner_id is None or self._domains.domains[scan.domain_id].user_id == owner_id:
                 return report.scan_id
         return None
+
+    async def list_reports(self, owner_id: UUID | None, limit: int) -> list[ReportSummary]:
+        summaries: list[ReportSummary] = []
+        ordered = sorted(
+            self._reports.reports.values(), key=lambda r: (r.created_at, str(r.id)), reverse=True
+        )
+        for report in ordered:
+            scan = self._scans.scans[report.scan_id]
+            domain = self._domains.domains[scan.domain_id]
+            if owner_id is not None and domain.user_id != owner_id:
+                continue
+            counts: dict[Severity, int] = {}
+            for view in self._scoped(Scope(scan_id=report.scan_id)):
+                counts[view.finding.severity] = counts.get(view.finding.severity, 0) + 1
+            summaries.append(
+                ReportSummary(
+                    report.scan_id,
+                    domain.id,
+                    domain.name,
+                    report.created_at,
+                    report.decision_id is not None,
+                    counts,
+                )
+            )
+        return summaries[:limit]
 
     async def get(self, finding_id: UUID) -> FindingView | None:
         return next((v for v in self._views() if v.finding.id == finding_id), None)

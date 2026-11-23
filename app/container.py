@@ -93,6 +93,7 @@ from app.application.use_cases.recon.start_recon import RescanAsset, StartReconS
 from app.application.use_cases.reports.dashboard import GetDashboardSummary
 from app.application.use_cases.reports.get_report import GetReport, RenderReportPdf
 from app.application.use_cases.reports.latest_report import GetLatestReportScan
+from app.application.use_cases.reports.list_reports import ListReports
 from app.application.use_cases.reports.update_recommendation import UpdateRecommendationStatus
 from app.application.use_cases.testing.read_scans import GetScan, ListScanFindings, ListTestRuns
 from app.application.use_cases.testing.run_scan_tests import RunScanTests
@@ -192,6 +193,7 @@ class Container:
     update_finding_status: UpdateFindingStatus
     get_report: GetReport
     latest_report_scan: GetLatestReportScan
+    list_reports: ListReports
     render_report_pdf: RenderReportPdf
     update_recommendation: UpdateRecommendationStatus
     dashboard: GetDashboardSummary
@@ -508,6 +510,7 @@ def build_container(
         update_finding_status=UpdateFindingStatus(domains, finding_query, record_action),
         get_report=get_report,
         latest_report_scan=GetLatestReportScan(finding_query),
+        list_reports=ListReports(finding_query),
         render_report_pdf=RenderReportPdf(get_report, report_renderer, record_action),
         update_recommendation=UpdateRecommendationStatus(domains, scans, reports, record_action),
         dashboard=GetDashboardSummary(domains, scans, finding_query),

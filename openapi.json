@@ -1441,6 +1441,58 @@
         "title": "ReportResponse",
         "type": "object"
       },
+      "ReportSummaryResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "domain_id": {
+            "format": "uuid",
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "generated_with_llm": {
+            "title": "Generated With Llm",
+            "type": "boolean"
+          },
+          "scan_id": {
+            "format": "uuid",
+            "title": "Scan Id",
+            "type": "string"
+          },
+          "severity_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Severity"
+            },
+            "title": "Severity Counts",
+            "type": "object"
+          },
+          "total_findings": {
+            "title": "Total Findings",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scan_id",
+          "domain_id",
+          "domain",
+          "created_at",
+          "generated_with_llm",
+          "total_findings",
+          "severity_counts"
+        ],
+        "title": "ReportSummaryResponse",
+        "type": "object"
+      },
       "ResetPasswordRequest": {
         "properties": {
           "new_password": {
@@ -3408,6 +3460,36 @@
           }
         ],
         "summary": "Update Recommendation",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports": {
+      "get": {
+        "operationId": "list_reports_reports_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportSummaryResponse"
+                  },
+                  "title": "Response List Reports Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Reports",
         "tags": [
           "reports"
         ]
