@@ -176,3 +176,31 @@ def test_audit_is_admin_only_and_records_domain_events(
         "intact": False,
         "broken_at_id": 2,
     }
+
+
+def test_delete_domain_removes_it_and_audits(
+    client: TestClient, users_repo: InMemoryUserRepository, audit_repo: InMemoryAuditRepository
+) -> None:
+    headers = _session(client, users_repo, "ana@example.com", Role.ANALYST)
+    domain_id = _create(client, headers)["id"]
+    response = client.delete(f"/domains/{domain_id}", headers=headers)
+    assert response.status_code == 204
+    assert client.get(f"/domains/{domain_id}", headers=headers).status_code == 404
+    assert client.get("/domains", headers=headers).json() == []
+    actions = [entry.action for entry in audit_repo.entries]
+    assert "domain.deleted" in actions
+    assert client.delete(f"/domains/{domain_id}", headers=headers).status_code == 404
+
+
+def test_delete_domain_is_owner_only(
+    client: TestClient, users_repo: InMemoryUserRepository
+) -> None:
+    owner = _session(client, users_repo, "ana@example.com", Role.ANALYST)
+    stranger = _session(client, users_repo, "luis@example.com", Role.ANALYST)
+    admin = _session(client, users_repo, "root@example.com", Role.ADMIN)
+    viewer = _session(client, users_repo, "viewer@example.com", Role.VIEWER)
+    domain_id = _create(client, owner)["id"]
+    assert client.delete(f"/domains/{domain_id}", headers=stranger).status_code == 404
+    assert client.delete(f"/domains/{domain_id}", headers=admin).status_code == 404
+    assert client.delete(f"/domains/{domain_id}", headers=viewer).status_code == 403
+    assert client.get(f"/domains/{domain_id}", headers=owner).status_code == 200

@@ -74,6 +74,10 @@ class PostgresDomainRepository:
                 raise DomainAlreadyClaimedError from exc
             raise
 
+    async def delete(self, domain_id: UUID) -> None:
+        async with self._pool.connection() as conn:
+            await conn.execute("delete from public.domains where id = %s", (domain_id,))
+
     async def _one(self, where: str, *params: Any) -> Domain | None:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(f"select {_COLUMNS} from public.domains {where}", params)

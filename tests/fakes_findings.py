@@ -92,6 +92,15 @@ class InMemoryFindingQueryRepository:
             result.append(v)
         return result
 
+    async def latest_report_scan_id(self, owner_id: UUID | None) -> UUID | None:
+        for report in sorted(
+            self._reports.reports.values(), key=lambda r: (r.created_at, str(r.id)), reverse=True
+        ):
+            scan = self._scans.scans[report.scan_id]
+            if owner_id is None or self._domains.domains[scan.domain_id].user_id == owner_id:
+                return report.scan_id
+        return None
+
     async def get(self, finding_id: UUID) -> FindingView | None:
         return next((v for v in self._views() if v.finding.id == finding_id), None)
 

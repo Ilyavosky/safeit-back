@@ -231,6 +231,9 @@ class InMemoryDomainRepository:
                 raise DomainAlreadyClaimedError
         self.domains[domain.id] = domain
 
+    async def delete(self, domain_id: UUID) -> None:
+        self.domains.pop(domain_id, None)
+
 
 def _by_name(domain: Domain) -> str:
     return domain.name

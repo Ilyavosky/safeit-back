@@ -13,6 +13,10 @@ from app.domain.value_objects.severity import Severity
 from app.interfaces.api.schemas.findings import FindingDetailResponse
 
 
+class LatestReportResponse(BaseModel):
+    scan_id: UUID | None
+
+
 class RecommendationResponse(BaseModel):
     id: UUID
     finding_id: UUID

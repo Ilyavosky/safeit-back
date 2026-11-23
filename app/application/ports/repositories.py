@@ -57,6 +57,8 @@ class DomainRepository(Protocol):
 
     async def save(self, domain: Domain) -> None: ...
 
+    async def delete(self, domain_id: UUID) -> None: ...
+
 
 class AuditRepository(Protocol):
     async def record(

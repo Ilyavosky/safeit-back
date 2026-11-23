@@ -36,6 +36,11 @@ async def read_domain(
     return DomainResponse.from_domain(await container.get_domain.execute(user, domain_id))
 
 
+@router.delete("/{domain_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_domain(domain_id: UUID, user: Operator, container: ContainerDep) -> None:
+    await container.delete_domain.execute(user, domain_id)
+
+
 @router.post("/{domain_id}/verify", response_model=DomainResponse)
 async def verify_domain(domain_id: UUID, user: Operator, container: ContainerDep) -> DomainResponse:
     return DomainResponse.from_domain(await container.verify_domain.execute(user, domain_id))

@@ -69,6 +69,7 @@ from app.application.use_cases.auth.update_profile import UpdateProfile
 from app.application.use_cases.cve.lookup_cve import LookupCve
 from app.application.use_cases.cve.sync_catalog import SyncCveCatalog
 from app.application.use_cases.domains.add_domain import AddDomain
+from app.application.use_cases.domains.delete_domain import DeleteDomain
 from app.application.use_cases.domains.get_domain import GetDomain
 from app.application.use_cases.domains.list_domains import ListDomains
 from app.application.use_cases.domains.verify_domain import VerifyDomain
@@ -91,6 +92,7 @@ from app.application.use_cases.recon.run_recon import ReconLimits, RunReconScan
 from app.application.use_cases.recon.start_recon import RescanAsset, StartReconScan
 from app.application.use_cases.reports.dashboard import GetDashboardSummary
 from app.application.use_cases.reports.get_report import GetReport, RenderReportPdf
+from app.application.use_cases.reports.latest_report import GetLatestReportScan
 from app.application.use_cases.reports.update_recommendation import UpdateRecommendationStatus
 from app.application.use_cases.testing.read_scans import GetScan, ListScanFindings, ListTestRuns
 from app.application.use_cases.testing.run_scan_tests import RunScanTests
@@ -178,6 +180,7 @@ class Container:
     get_domain: GetDomain
     list_domains: ListDomains
     verify_domain: VerifyDomain
+    delete_domain: DeleteDomain
     sync_cve_catalog: SyncCveCatalog
     lookup_cve: LookupCve
     run_scan_tests: RunScanTests
@@ -188,6 +191,7 @@ class Container:
     get_finding: GetFinding
     update_finding_status: UpdateFindingStatus
     get_report: GetReport
+    latest_report_scan: GetLatestReportScan
     render_report_pdf: RenderReportPdf
     update_recommendation: UpdateRecommendationStatus
     dashboard: GetDashboardSummary
@@ -470,6 +474,7 @@ def build_container(
         add_domain=AddDomain(domains, record_action),
         get_domain=GetDomain(domains),
         list_domains=ListDomains(domains),
+        delete_domain=DeleteDomain(domains, record_action),
         verify_domain=VerifyDomain(
             domains,
             domain_verifier,
@@ -502,6 +507,7 @@ def build_container(
         get_finding=GetFinding(domains, finding_query),
         update_finding_status=UpdateFindingStatus(domains, finding_query, record_action),
         get_report=get_report,
+        latest_report_scan=GetLatestReportScan(finding_query),
         render_report_pdf=RenderReportPdf(get_report, report_renderer, record_action),
         update_recommendation=UpdateRecommendationStatus(domains, scans, reports, record_action),
         dashboard=GetDashboardSummary(domains, scans, finding_query),

@@ -785,6 +785,27 @@
         "title": "JobStatus",
         "type": "string"
       },
+      "LatestReportResponse": {
+        "properties": {
+          "scan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Id"
+          }
+        },
+        "required": [
+          "scan_id"
+        ],
+        "title": "LatestReportResponse",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -864,6 +885,7 @@
             "type": "string"
           },
           "mfa_token": {
+            "maxLength": 2048,
             "minLength": 1,
             "title": "Mfa Token",
             "type": "string"
@@ -2639,6 +2661,45 @@
       }
     },
     "/domains/{domain_id}": {
+      "delete": {
+        "operationId": "delete_domain_domains__domain_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "domain_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Domain Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Domain",
+        "tags": [
+          "domains"
+        ]
+      },
       "get": {
         "operationId": "read_domain_domains__domain_id__get",
         "parameters": [
@@ -3347,6 +3408,32 @@
           }
         ],
         "summary": "Update Recommendation",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/latest": {
+      "get": {
+        "operationId": "read_latest_report_reports_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LatestReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Latest Report",
         "tags": [
           "reports"
         ]

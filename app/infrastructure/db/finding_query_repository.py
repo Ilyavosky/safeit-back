@@ -234,6 +234,21 @@ class PostgresFindingQueryRepository:
         )
         return {JobStatus(r[0]): int(r[1]) for r in rows}
 
+    async def latest_report_scan_id(self, owner_id: UUID | None) -> UUID | None:
+        clauses = ["true"]
+        params: list[Any] = []
+        if owner_id is not None:
+            clauses.append("d.user_id = %s")
+            params.append(owner_id)
+        rows = await self._fetch(
+            "select r.scan_id from public.reports r "
+            "join public.scans s on s.id = r.scan_id "
+            "join public.domains d on d.id = s.domain_id "
+            f"where {' and '.join(clauses)} order by r.created_at desc, r.id desc limit 1",
+            params,
+        )
+        return rows[0][0] if rows else None
+
     async def _fetch(self, sql: str, params: list[Any]) -> list[Any]:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(sql, params)

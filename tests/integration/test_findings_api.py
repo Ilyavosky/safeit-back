@@ -280,3 +280,24 @@ def test_report_is_not_found_before_it_exists(
     scan_id = client.post(f"/domains/{domain_id}/tests", headers=headers).json()["id"]
     assert client.get(f"/reports/{scan_id}", headers=headers).status_code == 404
     assert client.get(f"/reports/{uuid4()}", headers=headers).status_code == 404
+
+
+def test_latest_report_points_to_the_newest_report_of_the_user(
+    client: TestClient,
+    users_repo: InMemoryUserRepository,
+    domain_verifier: FakeDomainVerifier,
+    endpoints_repo: InMemoryEndpointRepository,
+    scheduler: ImmediateScheduler,
+    runners: dict[str, FakeRunner],
+) -> None:
+    headers, _, scan_id = _scan_with_findings(
+        client, users_repo, domain_verifier, endpoints_repo, scheduler, runners
+    )
+    latest = client.get("/reports/latest", headers=headers)
+    assert latest.status_code == 200
+    assert latest.json() == {"scan_id": str(scan_id)}
+    stranger = _session(client, users_repo, "luis@example.com", Role.ANALYST)
+    assert client.get("/reports/latest", headers=stranger).json() == {"scan_id": None}
+    admin = _session(client, users_repo, "root@example.com", Role.ADMIN)
+    assert client.get("/reports/latest", headers=admin).json() == {"scan_id": str(scan_id)}
+    assert client.get("/reports/latest", headers={}).status_code == 401

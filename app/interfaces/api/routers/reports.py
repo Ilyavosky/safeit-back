@@ -8,6 +8,7 @@ from app.domain.entities.user import User
 from app.domain.value_objects.role import Role
 from app.interfaces.api.dependencies import CurrentUser, get_container, require_role
 from app.interfaces.api.schemas.reports import (
+    LatestReportResponse,
     RecommendationResponse,
     RecommendationStatusRequest,
     ReportResponse,
@@ -17,6 +18,11 @@ router = APIRouter(tags=["reports"])
 
 ContainerDep = Annotated[Container, Depends(get_container)]
 Operator = Annotated[User, Depends(require_role(Role.ADMIN, Role.ANALYST))]
+
+
+@router.get("/reports/latest", response_model=LatestReportResponse)
+async def read_latest_report(user: CurrentUser, container: ContainerDep) -> LatestReportResponse:
+    return LatestReportResponse(scan_id=await container.latest_report_scan.execute(user))
 
 
 @router.get("/reports/{scan_id}", response_model=ReportResponse)
