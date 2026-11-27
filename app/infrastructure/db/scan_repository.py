@@ -6,6 +6,7 @@ from psycopg_pool import AsyncConnectionPool
 from app.domain.entities.scan import Scan
 from app.domain.value_objects.job_status import JobStatus
 from app.domain.value_objects.scan_type import ScanType
+from app.infrastructure.db.sql_builder import query
 
 _COLUMNS = "id, domain_id, started_by, type, status, created_at, started_at, finished_at"
 
@@ -30,7 +31,10 @@ class PostgresScanRepository:
     async def add(self, scan: Scan) -> None:
         async with self._pool.connection() as conn:
             await conn.execute(
-                f"insert into public.scans ({_COLUMNS}) values (%s, %s, %s, %s, %s, %s, %s, %s)",
+                query(
+                    "insert into public.scans ({columns}) values (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    columns=_COLUMNS,
+                ),
                 (
                     scan.id,
                     scan.domain_id,
@@ -46,7 +50,8 @@ class PostgresScanRepository:
     async def get(self, scan_id: UUID) -> Scan | None:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_COLUMNS} from public.scans where id = %s", (scan_id,)
+                query("select {columns} from public.scans where id = %s", columns=_COLUMNS),
+                (scan_id,),
             )
             row = await cursor.fetchone()
         return _to_scan(row) if row else None

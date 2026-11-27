@@ -8,6 +8,7 @@ from app.domain.entities.domain import Domain
 from app.domain.errors import ConflictError, DomainAlreadyClaimedError
 from app.domain.value_objects.domain_status import DomainStatus
 from app.domain.value_objects.verification_method import VerificationMethod
+from app.infrastructure.db.sql_builder import query
 
 _COLUMNS = "id, user_id, name, verification_method, verification_token, status, verified_at"
 _VERIFIED_NAME_INDEX = "domains_verified_name_key"
@@ -33,7 +34,11 @@ class PostgresDomainRepository:
         try:
             async with self._pool.connection() as conn:
                 await conn.execute(
-                    f"insert into public.domains ({_COLUMNS}) values (%s, %s, %s, %s, %s, %s, %s)",
+                    query(
+                        "insert into public.domains ({columns}) values (%s, %s, %s, %s, %s, "
+                        "%s, %s)",
+                        columns=_COLUMNS,
+                    ),
                     (
                         domain.id,
                         domain.user_id,
@@ -80,14 +85,24 @@ class PostgresDomainRepository:
 
     async def _one(self, where: str, *params: Any) -> Domain | None:
         async with self._pool.connection() as conn:
-            cursor = await conn.execute(f"select {_COLUMNS} from public.domains {where}", params)
+            cursor = await conn.execute(
+                query(
+                    "select {columns} from public.domains {where}", columns=_COLUMNS, where=where
+                ),
+                params,
+            )
             row = await cursor.fetchone()
         return None if row is None else _to_domain(row)
 
     async def _many(self, where: str, *params: Any) -> list[Domain]:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_COLUMNS} from public.domains {where} order by name", params
+                query(
+                    "select {columns} from public.domains {where} order by name",
+                    columns=_COLUMNS,
+                    where=where,
+                ),
+                params,
             )
             rows = await cursor.fetchall()
         return [_to_domain(row) for row in rows]

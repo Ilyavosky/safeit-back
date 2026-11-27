@@ -9,6 +9,7 @@ from psycopg_pool import AsyncConnectionPool
 from app.domain.entities.public_analysis import PublicAnalysis, PublicHost
 from app.domain.value_objects.host_kind import HostKind
 from app.domain.value_objects.job_status import JobStatus
+from app.infrastructure.db.sql_builder import query
 
 _COLUMNS = (
     "id, user_id, domain, status, summary, summary_model, stats, error, "
@@ -60,10 +61,12 @@ class PostgresPublicAnalysisRepository:
     async def add_if_idle(self, analysis: PublicAnalysis) -> bool:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"insert into public.public_analyses ({_COLUMNS}) "
-                "values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
-                "on conflict (user_id) where status in ('queued', 'running') do nothing "
-                "returning id",
+                query(
+                    "insert into public.public_analyses ({columns}) values (%s, %s, %s, %s, "
+                    "%s, %s, %s, %s, %s, %s, %s) on conflict (user_id) where status in "
+                    "('queued', 'running') do nothing returning id",
+                    columns=_COLUMNS,
+                ),
                 (
                     analysis.id,
                     analysis.user_id,
@@ -99,7 +102,10 @@ class PostgresPublicAnalysisRepository:
     async def get(self, analysis_id: UUID) -> PublicAnalysis | None:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_COLUMNS} from public.public_analyses where id = %s", (analysis_id,)
+                query(
+                    "select {columns} from public.public_analyses where id = %s", columns=_COLUMNS
+                ),
+                (analysis_id,),
             )
             row = await cursor.fetchone()
         return _analysis(row) if row else None
@@ -107,8 +113,11 @@ class PostgresPublicAnalysisRepository:
     async def list_by_user(self, user_id: UUID, limit: int) -> list[PublicAnalysis]:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_COLUMNS} from public.public_analyses "
-                "where user_id = %s and expires_at > now() order by created_at desc limit %s",
+                query(
+                    "select {columns} from public.public_analyses where user_id = %s and "
+                    "expires_at > now() order by created_at desc limit %s",
+                    columns=_COLUMNS,
+                ),
                 (user_id, limit),
             )
             rows = await cursor.fetchall()
@@ -165,8 +174,11 @@ class PostgresPublicAnalysisRepository:
     async def list_hosts(self, analysis_id: UUID) -> list[PublicHost]:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_HOST_COLUMNS} from public.public_analysis_hosts "
-                "where analysis_id = %s order by host",
+                query(
+                    "select {host_columns} from public.public_analysis_hosts where analysis_id "
+                    "= %s order by host",
+                    host_columns=_HOST_COLUMNS,
+                ),
                 (analysis_id,),
             )
             rows = await cursor.fetchall()

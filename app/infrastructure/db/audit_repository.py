@@ -3,10 +3,12 @@ from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
+from psycopg import sql
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
 from app.domain.entities.audit_entry import AuditEntry
+from app.infrastructure.db.sql_builder import conjunction, query
 
 _COLUMNS = "id, user_id, action, entity, entity_id, detail, prev_hash, hash, created_at"
 
@@ -68,11 +70,19 @@ class PostgresAuditRepository:
         if action is not None:
             conditions.append("action = %s")
             params.append(action)
-        where = f"where {' and '.join(conditions)}" if conditions else ""
+        where = (
+            query("where {conditions}", conditions=conjunction(conditions))
+            if conditions
+            else sql.SQL("")
+        )
         params.append(limit)
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_COLUMNS} from public.audit_log {where} order by id desc limit %s",
+                query(
+                    "select {columns} from public.audit_log {where} order by id desc limit %s",
+                    columns=_COLUMNS,
+                    where=where,
+                ),
                 params,
             )
             rows = await cursor.fetchall()

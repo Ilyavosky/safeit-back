@@ -5,6 +5,7 @@ from uuid import UUID
 from psycopg_pool import AsyncConnectionPool
 
 from app.domain.entities.password_reset_token import PasswordResetToken
+from app.infrastructure.db.sql_builder import query
 
 _COLUMNS = "id, user_id, token_hash, expires_at, created_at, used_at"
 
@@ -16,8 +17,11 @@ class PostgresPasswordResetTokenRepository:
     async def add(self, token: PasswordResetToken) -> None:
         async with self._pool.connection() as conn:
             await conn.execute(
-                f"insert into public.password_reset_tokens ({_COLUMNS}) "
-                "values (%s, %s, %s, %s, %s, %s)",
+                query(
+                    "insert into public.password_reset_tokens ({columns}) values (%s, %s, %s, "
+                    "%s, %s, %s)",
+                    columns=_COLUMNS,
+                ),
                 (
                     token.id,
                     token.user_id,
@@ -31,7 +35,10 @@ class PostgresPasswordResetTokenRepository:
     async def get_by_hash(self, token_hash: str) -> PasswordResetToken | None:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_COLUMNS} from public.password_reset_tokens where token_hash = %s",
+                query(
+                    "select {columns} from public.password_reset_tokens where token_hash = %s",
+                    columns=_COLUMNS,
+                ),
                 (token_hash,),
             )
             row = await cursor.fetchone()

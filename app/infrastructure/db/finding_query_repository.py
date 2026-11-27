@@ -1,6 +1,8 @@
 from typing import Any
 from uuid import UUID
 
+from psycopg import sql
+from psycopg.abc import Query
 from psycopg_pool import AsyncConnectionPool
 
 from app.application.pagination import decode_cursor, encode_cursor
@@ -16,6 +18,7 @@ from app.domain.entities.finding import Finding
 from app.domain.value_objects.job_status import JobStatus
 from app.domain.value_objects.remediation_status import RemediationStatus
 from app.domain.value_objects.severity import Severity
+from app.infrastructure.db.sql_builder import conjunction, query
 
 _FROM = (
     "from public.findings f "
@@ -77,7 +80,7 @@ def _row_to_view(row: Any) -> FindingView:
     )
 
 
-def _scope_where(scope: Scope, *, active_only: bool = True) -> tuple[str, list[Any]]:
+def _scope_where(scope: Scope, *, active_only: bool = True) -> tuple[sql.Composable, list[Any]]:
     clauses = ["not f.is_false_positive"] if active_only else []
     params: list[Any] = []
     if scope.owner_id is not None:
@@ -91,7 +94,7 @@ def _scope_where(scope: Scope, *, active_only: bool = True) -> tuple[str, list[A
         params.append(scope.scan_id)
     else:
         clauses.append(_LATEST_SCAN)
-    return " and ".join(clauses) or "true", params
+    return (conjunction(clauses) if clauses else sql.SQL("true")), params
 
 
 class PostgresFindingQueryRepository:
@@ -107,7 +110,9 @@ class PostgresFindingQueryRepository:
             return {}
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"{_SELECT}{_FROM}where f.id = any(%s)",
+                query(
+                    "{select}{from_clause}where f.id = any(%s)", select=_SELECT, from_clause=_FROM
+                ),
                 (finding_ids,),
             )
             rows = await cursor.fetchall()
@@ -128,7 +133,7 @@ class PostgresFindingQueryRepository:
         if filters.lifecycle is None:
             clauses.append("not f.is_false_positive")
         else:
-            clauses.append(f"{_LIFECYCLE} = %s")
+            clauses.append(_LIFECYCLE + " = %s")
             params.append(filters.lifecycle.value)
         if owner_id is not None:
             clauses.append("d.user_id = %s")
@@ -153,13 +158,20 @@ class PostgresFindingQueryRepository:
                 if sort is FindingSort.PRIORITY
                 else "f.detected_at"
             )
-            clauses.append(f"({expr}, f.id) < (%s{cast}, %s)")
+            clauses.append("(" + expr + ", f.id) < (%s" + cast + ", %s)")
             params.extend([last_key, last_id])
-        where = " and ".join(clauses) or "true"
+        where = conjunction(clauses) if clauses else sql.SQL("true")
         async with self._pool.connection() as conn:
             result = await conn.execute(
-                f"{_SELECT}, {key} {_FROM}where {where} "
-                f"order by {key.replace('::text', '')} desc, f.id desc limit %s",
+                query(
+                    "{select}, {key} {from_clause}where {where} "
+                    "order by {order_key} desc, f.id desc limit %s",
+                    select=_SELECT,
+                    key=key,
+                    from_clause=_FROM,
+                    where=where,
+                    order_key=key.replace("::text", ""),
+                ),
                 (*params, limit + 1),
             )
             rows = await result.fetchall()
@@ -178,15 +190,24 @@ class PostgresFindingQueryRepository:
     async def severity_counts(self, scope: Scope) -> dict[Severity, int]:
         where, params = _scope_where(scope)
         rows = await self._fetch(
-            f"select f.severity, count(*) {_FROM}where {where} group by f.severity", params
+            query(
+                "select f.severity, count(*) {from_clause}where {where} group by f.severity",
+                from_clause=_FROM,
+                where=where,
+            ),
+            params,
         )
         return {Severity(r[0]): int(r[1]) for r in rows}
 
     async def remediation_counts(self, scope: Scope) -> dict[RemediationStatus, int]:
         where, params = _scope_where(scope)
         rows = await self._fetch(
-            f"select f.remediation_status, count(*) {_FROM}where {where} "
-            "group by f.remediation_status",
+            query(
+                "select f.remediation_status, count(*) {from_clause}where {where} "
+                "group by f.remediation_status",
+                from_clause=_FROM,
+                where=where,
+            ),
             params,
         )
         return {RemediationStatus(r[0]): int(r[1]) for r in rows}
@@ -194,7 +215,13 @@ class PostgresFindingQueryRepository:
     async def latest(self, scope: Scope, limit: int) -> list[FindingView]:
         where, params = _scope_where(scope)
         rows = await self._fetch(
-            f"{_SELECT}{_FROM}where {where} order by f.detected_at desc, f.id desc limit %s",
+            query(
+                "{select}{from_clause}where {where} "
+                "order by f.detected_at desc, f.id desc limit %s",
+                select=_SELECT,
+                from_clause=_FROM,
+                where=where,
+            ),
             [*params, limit],
         )
         return [_row_to_view(r) for r in rows]
@@ -209,8 +236,11 @@ class PostgresFindingQueryRepository:
             clauses.append("d.id = %s")
             params.append(scope.domain_id)
         rows = await self._fetch(
-            "select count(*) from public.assets a join public.domains d on d.id = a.domain_id "
-            f"where {' and '.join(clauses)}",
+            query(
+                "select count(*) from public.assets a "
+                "join public.domains d on d.id = a.domain_id where {where}",
+                where=conjunction(clauses),
+            ),
             params,
         )
         return int(rows[0][0])
@@ -228,9 +258,11 @@ class PostgresFindingQueryRepository:
             clauses.append("s.id = %s")
             params.append(scope.scan_id)
         rows = await self._fetch(
-            "select s.status, count(*) from public.scans s "
-            "join public.domains d on d.id = s.domain_id "
-            f"where {' and '.join(clauses)} group by s.status",
+            query(
+                "select s.status, count(*) from public.scans s "
+                "join public.domains d on d.id = s.domain_id where {where} group by s.status",
+                where=conjunction(clauses),
+            ),
             params,
         )
         return {JobStatus(r[0]): int(r[1]) for r in rows}
@@ -242,10 +274,13 @@ class PostgresFindingQueryRepository:
             clauses.append("d.user_id = %s")
             params.append(owner_id)
         rows = await self._fetch(
-            "select r.scan_id from public.reports r "
-            "join public.scans s on s.id = r.scan_id "
-            "join public.domains d on d.id = s.domain_id "
-            f"where {' and '.join(clauses)} order by r.created_at desc, r.id desc limit 1",
+            query(
+                "select r.scan_id from public.reports r "
+                "join public.scans s on s.id = r.scan_id "
+                "join public.domains d on d.id = s.domain_id where {where} "
+                "order by r.created_at desc, r.id desc limit 1",
+                where=conjunction(clauses),
+            ),
             params,
         )
         return rows[0][0] if rows else None
@@ -257,11 +292,13 @@ class PostgresFindingQueryRepository:
             clauses.append("d.user_id = %s")
             params.append(owner_id)
         rows = await self._fetch(
-            "select rp.scan_id, d.id, d.name, rp.created_at, (rp.decision_id is not null) "
-            "from public.reports rp "
-            "join public.scans s on s.id = rp.scan_id "
-            "join public.domains d on d.id = s.domain_id "
-            f"where {' and '.join(clauses)} order by rp.created_at desc, rp.id desc limit %s",
+            query(
+                "select rp.scan_id, d.id, d.name, rp.created_at, (rp.decision_id is not null) "
+                "from public.reports rp join public.scans s on s.id = rp.scan_id "
+                "join public.domains d on d.id = s.domain_id where {where} "
+                "order by rp.created_at desc, rp.id desc limit %s",
+                where=conjunction(clauses),
+            ),
             [*params, limit],
         )
         if not rows:
@@ -280,7 +317,7 @@ class PostgresFindingQueryRepository:
             for row in rows
         ]
 
-    async def _fetch(self, sql: str, params: list[Any]) -> list[Any]:
+    async def _fetch(self, statement: Query, params: list[Any]) -> list[Any]:
         async with self._pool.connection() as conn:
-            cursor = await conn.execute(sql, params)
+            cursor = await conn.execute(statement, params)
             return list(await cursor.fetchall())

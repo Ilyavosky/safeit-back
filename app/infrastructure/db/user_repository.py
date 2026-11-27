@@ -1,12 +1,14 @@
 from typing import Any
 from uuid import UUID
 
+from psycopg.abc import Query
 from psycopg.errors import UniqueViolation
 from psycopg_pool import AsyncConnectionPool
 
 from app.domain.entities.user import User
 from app.domain.errors import ConflictError
 from app.domain.value_objects.role import Role
+from app.infrastructure.db.sql_builder import query
 
 _COLUMNS = "id, email, password_hash, role, totp_secret_enc, mfa_enabled, created_at"
 _DUPLICATE_EMAIL = "Ya existe una cuenta con ese correo."
@@ -29,16 +31,23 @@ class PostgresUserRepository:
         self._pool = pool
 
     async def get_by_id(self, user_id: UUID) -> User | None:
-        return await self._fetch_one(f"select {_COLUMNS} from public.users where id = %s", user_id)
+        return await self._fetch_one(
+            query("select {columns} from public.users where id = %s", columns=_COLUMNS), user_id
+        )
 
     async def get_by_email(self, email: str) -> User | None:
-        return await self._fetch_one(f"select {_COLUMNS} from public.users where email = %s", email)
+        return await self._fetch_one(
+            query("select {columns} from public.users where email = %s", columns=_COLUMNS), email
+        )
 
     async def add(self, user: User) -> None:
         try:
             async with self._pool.connection() as conn:
                 await conn.execute(
-                    f"insert into public.users ({_COLUMNS}) values (%s, %s, %s, %s, %s, %s, %s)",
+                    query(
+                        "insert into public.users ({columns}) values (%s, %s, %s, %s, %s, %s, %s)",
+                        columns=_COLUMNS,
+                    ),
                     (
                         user.id,
                         user.email,
@@ -70,8 +79,8 @@ class PostgresUserRepository:
         except UniqueViolation as exc:
             raise ConflictError(_DUPLICATE_EMAIL) from exc
 
-    async def _fetch_one(self, query: str, param: object) -> User | None:
+    async def _fetch_one(self, statement: Query, param: object) -> User | None:
         async with self._pool.connection() as conn:
-            cursor = await conn.execute(query, (param,))
+            cursor = await conn.execute(statement, (param,))
             row = await cursor.fetchone()
         return _to_user(row) if row else None

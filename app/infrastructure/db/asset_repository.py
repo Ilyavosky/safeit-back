@@ -9,6 +9,7 @@ from app.domain.entities.asset import Asset
 from app.domain.entities.discovered import DiscoveredService, HttpProbe
 from app.domain.entities.endpoint import Endpoint
 from app.domain.value_objects.asset_kind import AssetKind
+from app.infrastructure.db.sql_builder import query
 
 _ASSET = "id, domain_id, scan_id, kind, value, in_scope, discovered_at"
 _ENDPOINT = (
@@ -40,10 +41,12 @@ class PostgresAssetRepository:
     async def upsert(self, asset: Asset) -> Asset:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"insert into public.assets ({_ASSET}) values (%s, %s, %s, %s, %s, %s, %s) "
-                "on conflict (domain_id, kind, value) do update "
-                "set scan_id = excluded.scan_id, in_scope = excluded.in_scope "
-                f"returning {_ASSET}",
+                query(
+                    "insert into public.assets ({asset}) values (%s, %s, %s, %s, %s, %s, %s) "
+                    "on conflict (domain_id, kind, value) do update set scan_id = "
+                    "excluded.scan_id, in_scope = excluded.in_scope returning {asset}",
+                    asset=_ASSET,
+                ),
                 (
                     asset.id,
                     asset.domain_id,
@@ -88,7 +91,10 @@ class PostgresAssetRepository:
     async def list_by_domain(self, domain_id: UUID) -> list[Asset]:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_ASSET} from public.assets where domain_id = %s order by kind, value",
+                query(
+                    "select {asset} from public.assets where domain_id = %s order by kind, value",
+                    asset=_ASSET,
+                ),
                 (domain_id,),
             )
             return [_to_asset(row) for row in await cursor.fetchall()]
@@ -96,7 +102,7 @@ class PostgresAssetRepository:
     async def get(self, asset_id: UUID) -> Asset | None:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_ASSET} from public.assets where id = %s", (asset_id,)
+                query("select {asset} from public.assets where id = %s", asset=_ASSET), (asset_id,)
             )
             row = await cursor.fetchone()
         return _to_asset(row) if row else None
@@ -113,8 +119,11 @@ class PostgresAssetRepository:
     async def list_endpoints(self, asset_id: UUID) -> list[Endpoint]:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_ENDPOINT} from public.endpoints e "
-                "join public.assets a on a.id = e.asset_id where e.asset_id = %s order by e.url",
+                query(
+                    "select {endpoint} from public.endpoints e join public.assets a on a.id = "
+                    "e.asset_id where e.asset_id = %s order by e.url",
+                    endpoint=_ENDPOINT,
+                ),
                 (asset_id,),
             )
             return [_to_endpoint(row) for row in await cursor.fetchall()]
@@ -122,8 +131,11 @@ class PostgresAssetRepository:
     async def get_endpoint(self, endpoint_id: UUID) -> Endpoint | None:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_ENDPOINT} from public.endpoints e "
-                "join public.assets a on a.id = e.asset_id where e.id = %s",
+                query(
+                    "select {endpoint} from public.endpoints e join public.assets a on a.id = "
+                    "e.asset_id where e.id = %s",
+                    endpoint=_ENDPOINT,
+                ),
                 (endpoint_id,),
             )
             row = await cursor.fetchone()

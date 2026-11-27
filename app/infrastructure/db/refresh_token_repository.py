@@ -6,9 +6,13 @@ import psycopg
 from psycopg_pool import AsyncConnectionPool
 
 from app.domain.entities.refresh_token import RefreshToken
+from app.infrastructure.db.sql_builder import query
 
 _COLUMNS = "id, user_id, family_id, token_hash, expires_at, revoked_at, replaced_by"
-_INSERT = f"insert into public.refresh_tokens ({_COLUMNS}) values (%s, %s, %s, %s, %s, %s, %s)"
+_INSERT = query(
+    "insert into public.refresh_tokens ({columns}) values (%s, %s, %s, %s, %s, %s, %s)",
+    columns=_COLUMNS,
+)
 
 
 def _params(token: RefreshToken) -> tuple[Any, ...]:
@@ -34,7 +38,10 @@ class PostgresRefreshTokenRepository:
     async def get_by_hash(self, token_hash: str) -> RefreshToken | None:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_COLUMNS} from public.refresh_tokens where token_hash = %s",
+                query(
+                    "select {columns} from public.refresh_tokens where token_hash = %s",
+                    columns=_COLUMNS,
+                ),
                 (token_hash,),
             )
             row = await cursor.fetchone()

@@ -7,6 +7,7 @@ from psycopg_pool import AsyncConnectionPool
 from app.application.ports.reports import RecommendationRef
 from app.domain.entities.report import Recommendation, Report
 from app.domain.value_objects.recommendation_status import RecommendationStatus
+from app.infrastructure.db.sql_builder import query
 
 _REC_COLUMNS = "id, report_id, finding_id, priority, action, status"
 
@@ -70,8 +71,11 @@ class PostgresReportRepository:
     async def list_recommendations(self, report_id: UUID) -> list[Recommendation]:
         async with self._pool.connection() as conn:
             cursor = await conn.execute(
-                f"select {_REC_COLUMNS} from public.recommendations "
-                "where report_id = %s order by priority, id",
+                query(
+                    "select {rec_columns} from public.recommendations where report_id = %s "
+                    "order by priority, id",
+                    rec_columns=_REC_COLUMNS,
+                ),
                 (report_id,),
             )
             rows = await cursor.fetchall()

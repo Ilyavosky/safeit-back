@@ -92,6 +92,11 @@ def test_execute_never_receives_a_bare_variable_built_elsewhere() -> None:
                 and node.func.attr == "execute"
                 and node.args
                 and isinstance(node.args[0], ast.Call)
+                and not (
+                    isinstance(node.args[0].func, ast.Name) and node.args[0].func.id == "query"
+                )
             ):
                 offenders.append(f"{path.name}:{node.lineno}")
-    assert not offenders, f"execute() con SQL generado por una llamada: {offenders}"
+    assert not offenders, (
+        f"execute() con SQL generado por una llamada distinta de query(): {offenders}"
+    )
