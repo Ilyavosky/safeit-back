@@ -15,7 +15,7 @@ dependencies = [
     "pydantic-settings>=2.16.2",
     "pyjwt>=2.15.1",
     "pyotp>=2.12.0",
-    "redis>=8.1.0",
+    "redis>=8.2.0",
     "reportlab>=5.1.0",
     "structlog>=26.1.0",
 ]
