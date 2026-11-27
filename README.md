@@ -4,6 +4,8 @@
   <img src="logo.png" alt="Logo de SafeIT" width="120">
 </p>
 
+> **About:** API de SafeIT: reconocimiento y pruebas de seguridad controladas con FastAPI, Celery y LLM opcional. Más detalle en [ABOUT.md](ABOUT.md) y [ARQUITECTURA.md](ARQUITECTURA.md).
+
 ![Interfaz de SafeIT funcionando](preview.png)
 
 ![Flujo de safeit-back](flujo.png)
