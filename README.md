@@ -4,12 +4,15 @@
   <img src="logo.png" alt="Logo de SafeIT" width="120">
 </p>
 
-![Vista previa de safeit-back](preview.png)
+![Interfaz de SafeIT funcionando](preview.png)
+
+![Flujo de safeit-back](flujo.png)
 
 | Recurso | Ruta en el repositorio | URL |
 |---|---|---|
 | Logo | `/logo.png` | https://raw.githubusercontent.com/Ilyavosky/safeit-back/main/logo.png |
-| Vista previa | `/preview.png` | https://raw.githubusercontent.com/Ilyavosky/safeit-back/main/preview.png |
+| Vista previa (interfaz funcionando) | `/preview.png` | https://raw.githubusercontent.com/Ilyavosky/safeit-back/main/preview.png |
+| Flujo | `/flujo.png` | https://raw.githubusercontent.com/Ilyavosky/safeit-back/main/flujo.png |
 
 Backend de SafeIT (FastAPI, arquitectura hexagonal). Plan de desarrollo por fases en `../PLAN-DESARROLLO-BACKEND.md`.
 
