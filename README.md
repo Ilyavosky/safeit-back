@@ -14,6 +14,28 @@
 | Vista previa (interfaz funcionando) | `/preview.png` | https://raw.githubusercontent.com/Ilyavosky/safeit-back/main/preview.png |
 | Flujo | `/flujo.png` | https://raw.githubusercontent.com/Ilyavosky/safeit-back/main/flujo.png |
 
+## Documentación para revisión
+
+- [ABOUT.md](ABOUT.md): qué es el proyecto, tecnologías y funciones.
+- [ARQUITECTURA.md](ARQUITECTURA.md): diagrama de arquitectura explicado.
+
+### Arquitectura
+
+```mermaid
+flowchart LR
+    F["Front<br/>Next.js en Vercel"] -->|HTTP /api| R["Routers FastAPI<br/>interfaces/api"]
+    R --> UC["Casos de uso<br/>application/use_cases"]
+    UC --> D["Dominio<br/>reglas de alcance, riesgo y reportes"]
+    UC --> P["Puertos<br/>application/ports"]
+    P --> PG[("PostgreSQL<br/>Supabase")]
+    P --> L["LLM opcional<br/>plan, análisis y reporte"]
+    P --> FE["NVD, EPSS y CISA KEV"]
+    UC -->|encola tarea| Q[("Redis")]
+    Q --> W["Worker Celery"]
+    W --> T["nmap, subfinder, httpx,<br/>nuclei y testssl"]
+    W --> UC
+```
+
 Backend de SafeIT (FastAPI, arquitectura hexagonal). Plan de desarrollo por fases en `../PLAN-DESARROLLO-BACKEND.md`.
 
 ## Requisitos
