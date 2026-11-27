@@ -1,4 +1,4 @@
-FROM golang:1.24-bookworm AS tools
+FROM golang:1.25-bookworm AS tools
 ENV CGO_ENABLED=0 GOBIN=/out
 RUN go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.6.7 \
  && go install github.com/projectdiscovery/httpx/cmd/httpx@v1.6.10 \
